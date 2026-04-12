@@ -43,11 +43,7 @@ curl -sSL https://raw.githubusercontent.com/SkylerOnRadio/log-checker/main/get-c
 Windows:
 
 ```powershell
-code Powershell
-
-git clone https://github.com/SkylerOnRadio/log-checker.git
-cd best-team
-.\install.ps1
+irm https://raw.githubusercontent.com/SkylerOnRadio/log-checker/main/install.ps1 | iex
 ```
 
 🎉 That's it! You can now use the check-log command from any directory on your computer.
@@ -86,6 +82,7 @@ check-log system.log -f html
 By default, the tool automatically generates and stores forensic reports inside your Documents folder organized by date.
 code Text
 
+```
 ~/Documents/Forensic_Reports/
 ├── csv/
 │ ├── YYYY-MM-DD/
@@ -97,6 +94,7 @@ code Text
 └── json/
 └── YYYY-MM-DD/
 └── 1_forensic_data_140522.json
+```
 
 🛠️ Local Development
 
