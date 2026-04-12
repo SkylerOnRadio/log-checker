@@ -38,7 +38,7 @@ You can install `check-log` instantly using `curl`. *(Requires `pipx` to be inst
 
 **Run this single line in your terminal:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/SkylerOnRadio/best-team/main/get-check-log.sh | bash
+curl -sSL https://raw.githubusercontent.com/SkylerOnRadio/log-checker/main/get-check-log.sh | bash
 ```
 Windows:
 
