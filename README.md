@@ -43,7 +43,7 @@ curl -sSL https://raw.githubusercontent.com/SkylerOnRadio/log-checker/main/get-c
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/YourUsername/best-team/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/SkylerOnRadio/log-checker/main/install.ps1 | iex
 ```
 
 🎉 That's it! You can now use the check-log command from any directory on your computer.
