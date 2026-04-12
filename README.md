@@ -107,6 +107,7 @@ If you want to modify the code and test it locally without reinstalling:
     Install in editable mode: pip install -e .
 
 Now, any changes you make to the Python files in the src/ directory will instantly be reflected when you run check-log!
+
 👥 Authors
 
     SkylerOnRadio (abhigyadulal@gmail.com)
