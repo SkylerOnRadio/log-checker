@@ -1,2 +1,2 @@
 [console_scripts]
-check-log = check_log.check_log:main
+check-log = check_log.cli:main

@@ -223,7 +223,7 @@ def scan_log(filepath: str, threshold_seconds: float,
 
     # Compute zone breakdown once here so every report function can read it
     # from result["risk_breakdown"] without re-running the calculation.
-    risk_breakdown = _risk_zones(gaps, final_threats)
+    risk_breakdown = risk_zones(gaps, final_threats)
 
     return {
         "gaps":    gaps,
