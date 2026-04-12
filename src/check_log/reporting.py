@@ -39,7 +39,8 @@ def report_terminal(result: dict, filepath: str):
     print(f" {C.BOLD}[SYSTEM CONTEXT]{C.RESET}               {C.BOLD}[PERFORMANCE]{C.RESET}")
     print(f"  Host : {sys_info['host']:<25} Time  : {perf['time']}s")
     print(f"  OS   : {sys_info['os']:<25} Rate  : {perf['lps']:,} lines/sec")
-    print(f"  Type : {stats['log_type']:<25} Parse : {stats['parsed']:,} / {stats['total']:,}")
+    print(f"  Type : {stats['log_type']:<25} Speed : {perf['mbps']} MB/s")
+    print(f"  Parse: {stats['parsed']:,} / {stats['total']:,} lines{'':<5} Workers: {perf['workers']}  CPU cap: {perf['cpu_limit']:.0f}%")
 
     print(f"\n {C.BOLD}[ENTROPY BASELINE]{C.RESET}")
     print(f"  Mean={eb['mean']:.3f}  StdDev={eb['std']:.3f}  "
@@ -154,14 +155,8 @@ def report_json(result: dict, path: str):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, default=str)
 
-def _build_zone_breakdown_html(breakdown: dict, tag_html_fn) -> str:
-    """
-    Render the per-zone risk bars for the HTML report.
-    Each zone bar is coloured green / amber / red based on its probability,
-    and a short plain-English driver note explains what raised it.
-    This function is called once inside report_html; it reads from
-    result["risk_breakdown"] which scan_log pre-computes via _risk_zones().
-    """
+def _build_zone_breakdown_html(breakdown: dict) -> str:
+    """Render the per-zone risk bars for the HTML report."""
     ZONE_META = {
         "integrity":    ("⏱️ Integrity",    "Timeline gaps & reversed timestamps"),
         "access":       ("🔐 Access",        "Login failures, brute force, privilege escalation"),
@@ -175,18 +170,14 @@ def _build_zone_breakdown_html(breakdown: dict, tag_html_fn) -> str:
     for zone, (label, note) in ZONE_META.items():
         p   = breakdown.get(zone, 0.0)
         pct = int(p * 100)
-        col = "#ef4444" if pct >= 75 else ("#f59e0b" if pct >= 40 else
-              "#10b981" if pct > 0 else "#d1d5db")
-        txt_col = col
+        col = "#ef4444" if pct >= 75 else ("#f59e0b" if pct >= 40 else "#10b981" if pct > 0 else "#d1d5db")
         rows.append(f"""
-  <div class="zone-breakdown-row">
-    <span class="zone-breakdown-label">{label}</span>
-    <div class="zone-breakdown-bar-wrap">
-      <div class="zone-breakdown-bar" style="width:{pct}%;background:{col}"></div>
-    </div>
-    <span class="zone-breakdown-pct" style="color:{txt_col}">{pct}%</span>
+  <div class="zb-row">
+    <span class="zb-lbl">{label}</span>
+    <div class="zb-bar-wrap"><div class="zb-bar" style="width:{pct}%;background:{col}"></div></div>
+    <span class="zb-pct" style="color:{col}">{pct}%</span>
   </div>
-  <div class="zone-breakdown-note">{note}</div>""")
+  <div class="zb-note">{note}</div>""")
     return "\n".join(rows)
 
 def report_html(result: dict, filepath: str, path: str):
@@ -275,27 +266,22 @@ def report_html(result: dict, filepath: str, path: str):
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en"><head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{html.escape(PROJECT_NAME)} – {html.escape(os.path.basename(filepath))}</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{esc(PROJECT_NAME)} – {esc(os.path.basename(filepath))}</title>
 <style>
-:root {{
-  --primary:#111827; --secondary:#6b7280; --danger:#ef4444;
-  --warning:#f59e0b; --success:#10b981; --info:#3b82f6;
-  --bg:#f3f4f6; --card-bg:#ffffff; --border:#e5e7eb;
-}}
+:root{{--primary:#111827;--secondary:#6b7280;--danger:#ef4444;--warning:#f59e0b;--success:#10b981;--bg:#f3f4f6;--card:#ffffff;--border:#e5e7eb}}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--primary);padding:24px;line-height:1.6;font-size:14px}}
 .container{{max-width:1280px;margin:0 auto}}
 h1{{font-size:24px;font-weight:800;letter-spacing:-.5px}}
 h2{{font-size:18px;font-weight:700;margin-bottom:16px}}
 h3{{font-size:15px;font-weight:700;margin-bottom:12px}}
-.card{{background:var(--card-bg);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:24px;margin-bottom:20px;border:1px solid var(--border)}}
-.grid-2{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:20px}}
-.grid-4{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:20px}}
-.stat-pill{{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}}
-.stat-pill .val{{font-size:28px;font-weight:900;line-height:1}}
-.stat-pill .lbl{{font-size:11px;color:var(--secondary);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}}
+.card{{background:var(--card);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:24px;margin-bottom:20px;border:1px solid var(--border)}}
+.g2{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-bottom:20px}}
+.g4{{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:20px}}
+.pill{{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}}
+.pill .val{{font-size:28px;font-weight:900;line-height:1}}
+.pill .lbl{{font-size:11px;color:var(--secondary);text-transform:uppercase;letter-spacing:.5px;margin-top:4px}}
 .risk-meter{{height:48px;background:#e5e7eb;border-radius:24px;overflow:hidden;margin:12px 0;position:relative;border:1px solid var(--border)}}
 .risk-fill{{height:100%;background:{risk_color};width:{risk}%}}
 .risk-text{{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:17px;text-shadow:0 1px 4px rgba(0,0,0,.5)}}
@@ -307,192 +293,135 @@ details[open] summary::after{{transform:rotate(180deg)}}
 details[open] summary{{border-left-color:var(--primary);background:#fff;border-bottom:1px solid var(--border)}}
 .inner{{border:none;background:transparent;margin:8px 0;border-radius:0}}
 .inner summary{{padding:10px 18px;font-size:13px;background:#f1f5f9;border-left:3px solid var(--secondary);font-weight:600}}
-.table-wrap{{padding:12px 16px;overflow-x:auto}}
+.tw{{padding:12px 16px;overflow-x:auto}}
 table{{width:100%;border-collapse:collapse;font-size:13px}}
 th{{background:#f8fafc;color:var(--secondary);text-transform:uppercase;font-size:10px;letter-spacing:.5px;padding:10px 12px;text-align:left;border-bottom:2px solid var(--border)}}
 td{{padding:10px 12px;border-bottom:1px solid #f1f5f9}}
-tr:last-child td{{border:none}}
-tr:hover td{{background:#f9fafb}}
+tr:last-child td{{border:none}}tr:hover td{{background:#f9fafb}}
 .tag{{padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;text-transform:uppercase;margin:2px;display:inline-block}}
-.tag-red{{background:#fee2e2;color:#991b1b}}
-.tag-blue{{background:#dbeafe;color:#1e40af}}
+.tag-red{{background:#fee2e2;color:#991b1b}}.tag-blue{{background:#dbeafe;color:#1e40af}}
 .kc-badge{{background:#7c3aed;color:#fff;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;margin-left:6px}}
 .no-data{{color:var(--secondary);font-style:italic;text-align:center;padding:16px}}
 .story-card{{background:#0f172a;color:#e2e8f0;padding:24px;border-radius:12px;margin-bottom:20px;border-left:5px solid #38bdf8}}
 .story-card p{{line-height:1.8;font-size:14px}}
-.meta-row{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border);font-size:13px}}
-.meta-row:last-child{{border:none}}
-.meta-label{{color:var(--secondary)}}
-.meta-val{{font-weight:600}}
+.mr{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border);font-size:13px}}
+.mr:last-child{{border:none}}.ml{{color:var(--secondary)}}.mv{{font-weight:600}}
 .actor-row{{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px}}
 .actor-ip{{width:130px;font-family:monospace;font-size:12px;flex-shrink:0}}
 .actor-bar-wrap{{flex:1;height:10px;background:#e5e7eb;border-radius:5px;overflow:hidden}}
-.actor-bar{{height:100%;border-radius:5px}}
-.actor-hits{{width:50px;text-align:right;color:var(--secondary);font-size:12px}}
-.entropy-info{{font-size:12px;color:var(--secondary);padding:10px 16px;background:#f8fafc;border-bottom:1px solid var(--border)}}
-.zone-header{{display:flex;align-items:center;gap:8px}}
-.zone-count{{background:var(--danger);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700}}
-.zone-count.ok{{background:var(--success)}}
-.file-path{{font-family:monospace;font-size:11px;background:#f1f5f9;padding:3px 8px;border-radius:4px;color:#374151}}
+.actor-bar{{height:100%;border-radius:5px}}.actor-hits{{width:50px;text-align:right;color:var(--secondary);font-size:12px}}
+.ei{{font-size:12px;color:var(--secondary);padding:10px 16px;background:#f8fafc;border-bottom:1px solid var(--border)}}
+.zh{{display:flex;align-items:center;gap:8px}}
+.zc{{background:var(--danger);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:700}}
+.zc.ok{{background:var(--success)}}
+.fp{{font-family:monospace;font-size:11px;background:#f1f5f9;padding:3px 8px;border-radius:4px;color:#374151}}
 footer{{text-align:center;color:var(--secondary);font-size:11px;padding:20px 0}}
-.zone-breakdown-row{{display:flex;align-items:center;gap:12px;margin-bottom:10px;font-size:13px}}
-.zone-breakdown-label{{width:110px;font-weight:600;color:var(--primary);flex-shrink:0;font-size:12px}}
-.zone-breakdown-bar-wrap{{flex:1;height:14px;background:#e5e7eb;border-radius:7px;overflow:hidden}}
-.zone-breakdown-bar{{height:100%;border-radius:7px;transition:width .4s ease}}
-.zone-breakdown-pct{{width:40px;text-align:right;font-weight:700;font-size:12px}}
-.zone-breakdown-note{{font-size:11px;color:var(--secondary);margin-top:2px;padding-left:122px}}
+.zb-row{{display:flex;align-items:center;gap:12px;margin-bottom:10px;font-size:13px}}
+.zb-lbl{{width:110px;font-weight:600;flex-shrink:0;font-size:12px}}
+.zb-bar-wrap{{flex:1;height:14px;background:#e5e7eb;border-radius:7px;overflow:hidden}}
+.zb-bar{{height:100%;border-radius:7px}}.zb-pct{{width:40px;text-align:right;font-weight:700;font-size:12px}}
+.zb-note{{font-size:11px;color:var(--secondary);margin-top:2px;padding-left:122px;margin-bottom:10px}}
 </style>
 </head><body><div class="container">
 
 <div class="card">
-  <h1>🔍 {html.escape(PROJECT_NAME)}</h1>
-  <p style="color:var(--secondary);margin:4px 0 4px;">
-    Forensic Audit: <strong>{html.escape(os.path.basename(filepath))}</strong>
-    &nbsp;·&nbsp; {sys_info['ts'][:19]}
-  </p>
-  <p style="margin-bottom:16px;font-size:12px;color:var(--secondary);">
-    Report saved to: <span class="file-path">{html.escape(path)}</span>
-  </p>
-  <div class="risk-meter">
-    <div class="risk-fill"></div>
-    <div class="risk-text">SYSTEM COMPROMISE PROBABILITY: {risk}%</div>
-  </div>
+  <h1>🔍 {esc(PROJECT_NAME)}</h1>
+  <p style="color:var(--secondary);margin:4px 0 4px;">Forensic Audit: <strong>{esc(os.path.basename(filepath))}</strong> &nbsp;·&nbsp; {sys_info['ts'][:19]}</p>
+  <p style="margin-bottom:16px;font-size:12px;color:var(--secondary);">Saved to: <span class="fp">{esc(path)}</span></p>
+  <div class="risk-meter"><div class="risk-fill"></div>
+  <div class="risk-text">SYSTEM COMPROMISE PROBABILITY: {risk}%</div></div>
 </div>
 
-<div class="grid-4">
-  <div class="stat-pill"><div class="val" style="color:{'#ef4444' if result['gaps'] else '#10b981'}">{len(result['gaps'])}</div><div class="lbl">Timeline Anomalies</div></div>
-  <div class="stat-pill"><div class="val" style="color:#f59e0b">{len(result['threats'])}</div><div class="lbl">Threat Actors</div></div>
-  <div class="stat-pill"><div class="val" style="color:#7c3aed">{len(kill_chain)}</div><div class="lbl">Kill Chains</div></div>
-  <div class="stat-pill"><div class="val" style="color:#ef4444">{len(ioc_hits)}</div><div class="lbl">IOC Matches</div></div>
-  <div class="stat-pill"><div class="val" style="color:#3b82f6">{stats['obfuscated']}</div><div class="lbl">Entropy Alerts</div></div>
-  <div class="stat-pill"><div class="val" style="color:#0891b2">{len(distributed)}</div><div class="lbl">Distributed Attackers</div></div>
-  <div class="stat-pill"><div class="val">{stats['rare_templates']}</div><div class="lbl">Rare Templates</div></div>
-  <div class="stat-pill"><div class="val" style="color:#10b981">{perf['lps']:,}</div><div class="lbl">Lines/sec</div></div>
+<div class="g4">
+  <div class="pill"><div class="val" style="color:{'#ef4444' if result['gaps'] else '#10b981'}">{len(result['gaps'])}</div><div class="lbl">Timeline Anomalies</div></div>
+  <div class="pill"><div class="val" style="color:#f59e0b">{len(result['threats'])}</div><div class="lbl">Threat Actors</div></div>
+  <div class="pill"><div class="val" style="color:#7c3aed">{len(kill_chain)}</div><div class="lbl">Kill Chains</div></div>
+  <div class="pill"><div class="val" style="color:#ef4444">{len(ioc_hits)}</div><div class="lbl">IOC Matches</div></div>
+  <div class="pill"><div class="val" style="color:#3b82f6">{stats['obfuscated']}</div><div class="lbl">Entropy Alerts</div></div>
+  <div class="pill"><div class="val" style="color:#0891b2">{len(distributed)}</div><div class="lbl">Dist. Attackers</div></div>
+  <div class="pill"><div class="val">{stats['rare_templates']}</div><div class="lbl">Rare Templates</div></div>
+  <div class="pill"><div class="val" style="color:#10b981">{perf['lps']:,}</div><div class="lbl">Lines/sec</div></div>
+  <div class="pill"><div class="val" style="color:#10b981">{perf['mbps']}</div><div class="lbl">MB/sec</div></div>
+  <div class="pill"><div class="val">{perf['workers']}</div><div class="lbl">Workers Used</div></div>
+  <div class="pill"><div class="val" style="color:#7c3aed">{perf['cpu_limit']:.0f}%</div><div class="lbl">CPU Cap/Worker</div></div>
 </div>
 
-<div class="grid-2">
+<div class="g2">
   <div class="card">
     <h3>💻 System Metadata</h3>
-    <div class="meta-row"><span class="meta-label">Hostname</span><span class="meta-val">{sys_info['host']}</span></div>
-    <div class="meta-row"><span class="meta-label">OS</span><span class="meta-val">{sys_info['os']} {sys_info['ver']}</span></div>
-    <div class="meta-row"><span class="meta-label">Architecture</span><span class="meta-val">{sys_info['arch']}</span></div>
-    <div class="meta-row"><span class="meta-label">Processor</span><span class="meta-val">{sys_info['cpu'] or 'N/A'}</span></div>
+    <div class="mr"><span class="ml">Hostname</span><span class="mv">{sys_info['host']}</span></div>
+    <div class="mr"><span class="ml">OS</span><span class="mv">{sys_info['os']} {sys_info['ver']}</span></div>
+    <div class="mr"><span class="ml">Architecture</span><span class="mv">{sys_info['arch']}</span></div>
+    <div class="mr"><span class="ml">Processor</span><span class="mv">{sys_info['cpu'] or 'N/A'}</span></div>
   </div>
   <div class="card">
     <h3>📈 Analysis Intelligence</h3>
-    <div class="meta-row"><span class="meta-label">Log Type</span><span class="meta-val">{stats['log_type']}</span></div>
-    <div class="meta-row"><span class="meta-label">Throughput</span><span class="meta-val">{perf['lps']:,} lines/sec</span></div>
-    <div class="meta-row"><span class="meta-label">Processing Time</span><span class="meta-val">{perf['time']}s</span></div>
-    <div class="meta-row"><span class="meta-label">Entropy Baseline</span><span class="meta-val">μ={eb['mean']:.3f}  σ={eb['std']:.3f}  Θ={eb['threshold']:.3f}</span></div>
-    <div class="meta-row"><span class="meta-label">Parsed / Total</span><span class="meta-val">{stats['parsed']:,} / {stats['total']:,}</span></div>
+    <div class="mr"><span class="ml">Log Type</span><span class="mv">{stats['log_type']}</span></div>
+    <div class="mr"><span class="ml">Throughput</span><span class="mv">{perf['lps']:,} lines/sec @ {perf['mbps']} MB/s</span></div>
+    <div class="mr"><span class="ml">Processing Time</span><span class="mv">{perf['time']}s ({perf['workers']} workers, CPU cap {perf['cpu_limit']:.0f}%)</span></div>
+    <div class="mr"><span class="ml">Entropy Baseline</span><span class="mv">μ={eb['mean']:.3f}  σ={eb['std']:.3f}  Θ={eb['threshold']:.3f}</span></div>
+    <div class="mr"><span class="ml">Parsed / Total</span><span class="mv">{stats['parsed']:,} / {stats['total']:,}</span></div>
   </div>
 </div>
 
 <div class="story-card">
   <h3 style="margin-bottom:10px;">📖 Forensic Reconstruction</h3>
-  <p>Analysis of <strong>{stats['total']:,}</strong> log lines identified <strong>{len(result['threats'])}</strong> active threat entities across
-  <strong>{len(result['gaps'])}</strong> timeline integrity violations.
-  {'<strong style="color:#f87171">Kill-chain sequences confirmed for ' + str(len(kill_chain)) + ' actor(s)</strong>, indicating structured multi-stage intrusion.' if kill_chain else 'No confirmed kill-chain sequences detected.'}
-  {'<strong style="color:#fb923c"> Distributed credential attack involving ' + str(len(distributed)) + ' coordinated IPs.</strong>' if distributed else ''}
-  Peak activity: <strong>{max((t['hits'] for t in result['threats']), default=0):,}</strong> events from a single source.
-  Entropy analysis (Θ={eb['threshold']:.2f}) flagged <strong>{stats['obfuscated']}</strong> obfuscated payloads.</p>
+  <p>Analysis of <strong>{stats['total']:,}</strong> lines using <strong>{perf['workers']} parallel workers</strong> at <strong>{perf['mbps']} MB/s</strong> identified <strong>{len(result['threats'])}</strong> active threat entities across <strong>{len(result['gaps'])}</strong> timeline violations.
+  {'<strong style="color:#f87171">Kill-chain confirmed for ' + str(len(kill_chain)) + ' actor(s).</strong>' if kill_chain else 'No kill-chain confirmed.'}
+  {'<strong style="color:#fb923c"> Distributed attack: ' + str(len(distributed)) + ' IPs.</strong>' if distributed else ''}
+  Peak: <strong>{max((t['hits'] for t in result['threats']), default=0):,}</strong> events from one source.
+  Entropy Θ={eb['threshold']:.2f} flagged <strong>{stats['obfuscated']}</strong> obfuscated payloads.</p>
 </div>
 
 {'<div class="card"><h3>📊 Top Actor Activity</h3>' + actor_bars + '</div>' if actor_bars else ''}
 
-{compare_section}
+{compare_html}
 
 <div class="card">
   <h3>🎯 Risk Zone Breakdown</h3>
-  <p style="color:var(--secondary);font-size:12px;margin-bottom:16px;">
-    Each zone's probability is computed from the number of actors exhibiting
-    that behaviour, their activity volume, and cross-cutting signals
-    (IOC matches, kill-chain depth, entropy). Values compound into the headline score above.
-  </p>
-{_build_zone_breakdown_html(result.get("risk_breakdown", {}), tag_html)}
+  <p style="color:var(--secondary);font-size:12px;margin-bottom:16px;">Per-zone probabilities computed dynamically (using asymptotic exponential smoothing) based on distinct actors and attack volumes. They compound into the headline probability.</p>
+{_build_zone_breakdown_html(result.get("risk_breakdown", {}))}
 </div>
 
 <div class="card">
   <h2>📂 Categorized Forensic Evidence</h2>
 
-  <details>
-    <summary><div class="zone-header">⏱️ Zone 1: Timeline &amp; Integrity
-      <span class="zone-count {'ok' if not result['gaps'] else ''}">{len(result['gaps'])}</span></div></summary>
-    <div class="table-wrap">
-      <details class="inner"><summary>Timeline Gaps (Potential Log Deletion)</summary>
-        <table><thead><tr><th>Severity</th><th>Duration</th><th>Lines</th><th>Started</th></tr></thead>
-        <tbody>{gap_rows('GAP')}</tbody></table></details>
-      <details class="inner"><summary>Reversed Timestamps (Potential Tampering)</summary>
-        <table><thead><tr><th>Severity</th><th>Delta</th><th>Lines</th><th>Started</th></tr></thead>
-        <tbody>{gap_rows('REVERSED')}</tbody></table></details>
-      <details class="inner"><summary>Anti-Forensic Commands</summary>
-        <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-        <tbody>{gen_threat_rows(log_tamper)}</tbody></table></details>
-    </div>
-  </details>
+  <details><summary><div class="zh">⏱️ Zone 1: Timeline &amp; Integrity<span class="zc {zone_count_cls(result['gaps'])}">{len(result['gaps'])}</span></div></summary>
+  <div class="tw">
+    <details class="inner"><summary>Timeline Gaps</summary><table><thead><tr><th>Severity</th><th>Duration</th><th>Lines</th><th>Start</th></tr></thead><tbody>{gap_rows('GAP')}</tbody></table></details>
+    <details class="inner"><summary>Reversed Timestamps</summary><table><thead><tr><th>Severity</th><th>Delta</th><th>Lines</th><th>Start</th></tr></thead><tbody>{gap_rows('REVERSED')}</tbody></table></details>
+    <details class="inner"><summary>Anti-Forensic Commands</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(log_tamper)}</tbody></table></details>
+  </div></details>
 
-  <details>
-    <summary><div class="zone-header">🔐 Zone 2: Access &amp; Control
-      <span class="zone-count {'ok' if not brute_force and not priv_esc else ''}">{len(brute_force)+len(priv_esc)}</span></div></summary>
-    <div class="table-wrap">
-      <details class="inner"><summary>Brute Force / Credential Attacks</summary>
-        <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-        <tbody>{gen_threat_rows(brute_force)}</tbody></table></details>
-      <details class="inner"><summary>Distributed Attack Participants</summary>
-        <div class="entropy-info">Coordinated authentication storm across a {DISTRIBUTED_ATTACK_WINDOW}s window.</div>
-        <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-        <tbody>{gen_threat_rows(distributed)}</tbody></table></details>
-      <details class="inner"><summary>Privilege Escalation Attempts</summary>
-        <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-        <tbody>{gen_threat_rows(priv_esc)}</tbody></table></details>
-      <details class="inner"><summary>Lateral Movement</summary>
-        <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-        <tbody>{gen_threat_rows(lateral)}</tbody></table></details>
-    </div>
-  </details>
+  <details><summary><div class="zh">🔐 Zone 2: Access &amp; Control<span class="zc {zone_count_cls(brute_force + priv_esc)}">{len(brute_force)+len(priv_esc)}</span></div></summary>
+  <div class="tw">
+    <details class="inner"><summary>Brute Force / Credential Attacks</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(brute_force)}</tbody></table></details>
+    <details class="inner"><summary>Distributed Attack Participants</summary><div class="ei">Coordinated storm across {DISTRIBUTED_ATTACK_WINDOW}s windows.</div><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(distributed)}</tbody></table></details>
+    <details class="inner"><summary>Privilege Escalation</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(priv_esc)}</tbody></table></details>
+    <details class="inner"><summary>Lateral Movement</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(lateral)}</tbody></table></details>
+  </div></details>
 
-  <details>
-    <summary><div class="zone-header">💀 Zone 3: Kill-Chain &amp; Confirmed Attacks
-      <span class="zone-count {'ok' if not kill_chain else ''}">{len(kill_chain)}</span></div></summary>
-    <div class="table-wrap">
-      <details class="inner"><summary>Kill-Chain Confirmed Actors</summary>
-        <div class="entropy-info">Stages: {' → '.join(KILL_CHAIN_STAGES)}</div>
-        <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC Score</th><th>Tags</th></tr></thead>
-        <tbody>{gen_threat_rows(kill_chain)}</tbody></table></details>
-      <details class="inner"><summary>Data Exfiltration Indicators</summary>
-        <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-        <tbody>{gen_threat_rows(exfil)}</tbody></table></details>
-    </div>
-  </details>
+  <details><summary><div class="zh">💀 Zone 3: Kill-Chain &amp; Confirmed Attacks<span class="zc {zone_count_cls(kill_chain)}">{len(kill_chain)}</span></div></summary>
+  <div class="tw">
+    <details class="inner"><summary>Kill-Chain Actors</summary><div class="ei">Stages: {' → '.join(KILL_CHAIN_STAGES)}</div><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC Score</th><th>Tags</th></tr></thead><tbody>{gen_rows(kill_chain)}</tbody></table></details>
+    <details class="inner"><summary>Data Exfiltration</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(exfil)}</tbody></table></details>
+  </div></details>
 
-  <details>
-    <summary><div class="zone-header">🔮 Zone 4: Obfuscation &amp; Entropy
-      <span class="zone-count {'ok' if not entropy_hits else ''}">{len(entropy_hits)}</span></div></summary>
-    <div class="table-wrap">
-      <div class="entropy-info">Dynamic threshold: <strong>{eb['threshold']:.3f}</strong> (μ={eb['mean']:.3f}, σ={eb['std']:.3f}). Lines above threshold indicate packed/encoded payloads.</div>
-      <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-      <tbody>{gen_threat_rows(entropy_hits) if entropy_hits else '<tr><td colspan="5" class="no-data">No obfuscated payloads detected.</td></tr>'}</tbody></table>
-    </div>
-  </details>
+  <details><summary><div class="zh">🔮 Zone 4: Obfuscation &amp; Entropy<span class="zc {zone_count_cls(ent_hits)}">{len(ent_hits)}</span></div></summary>
+  <div class="tw">
+    <div class="ei">Dynamic Θ={eb['threshold']:.3f} (μ={eb['mean']:.3f}, σ={eb['std']:.3f}). Lines above threshold: packed/encoded payloads.</div>
+    <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
+    <tbody>{gen_rows(ent_hits) if ent_hits else '<tr><td colspan="5" class="no-data">None detected.</td></tr>'}</tbody></table>
+  </div></details>
 
-  <details>
-    <summary><div class="zone-header">🌐 Zone 5: IOC Feed Matches
-      <span class="zone-count {'ok' if not ioc_hits else ''}">{len(ioc_hits)}</span></div></summary>
-    <div class="table-wrap">
-      <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
-      <tbody>{gen_threat_rows(ioc_hits) if ioc_hits else '<tr><td colspan="5" class="no-data">No IOC matches. Use --ioc-feed to enable.</td></tr>'}</tbody></table>
-    </div>
-  </details>
-
+  <details><summary><div class="zh">🌐 Zone 5: IOC Matches<span class="zc {zone_count_cls(ioc_hits)}">{len(ioc_hits)}</span></div></summary>
+  <div class="tw">
+    <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
+    <tbody>{gen_rows(ioc_hits) if ioc_hits else '<tr><td colspan="5" class="no-data">No IOC matches. Use --ioc-feed to enable.</td></tr>'}</tbody></table>
+  </div></details>
 </div>
 
-<footer>
-  {html.escape(PROJECT_NAME)} v{PROJECT_VERSION}
-  &nbsp;|&nbsp; {stats['parsed']:,} lines parsed
-  &nbsp;|&nbsp; {stats['skipped']:,} noisy lines skipped
-  &nbsp;|&nbsp; Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-</footer>
-
+<footer>{esc(PROJECT_NAME)} v{PROJECT_VERSION} &nbsp;|&nbsp; {stats['parsed']:,} parsed &nbsp;|&nbsp; {stats['skipped']:,} skipped &nbsp;|&nbsp; Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</footer>
 </div></body></html>"""
 
     with open(path, "w", encoding="utf-8") as f:

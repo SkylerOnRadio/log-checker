@@ -3,63 +3,48 @@ import re
 import gzip
 import bz2
 import socket
+import json
 import platform
 from datetime import datetime
 from typing import Dict
 from .config import REPORT_ROOT_DIR
+from typing import Tuple, Optional
+from .config import SIGS_FALLBACK
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ── OUTPUT PATH RESOLUTION ────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def resolve_output_dir() -> Dict[str, str]:
-    """
-    Resolves and creates:
-      ~/Documents/Forensic_Reports/{csv,html,json}/{YYYY-MM-DD}/
-    """
-    # 1. Get the current date for folder naming
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    
-    documents = os.path.join(os.path.expanduser("~"), "Documents")
-    if not os.path.isdir(documents):
+def load_sigs(config_path: Optional[str] = None) -> Tuple[Tuple[str, re.Pattern], ...]:
+    """Loads patterns from external JSON or uses internal defaults."""
+    data = SIGS_FALLBACK.copy()
+    if config_path and os.path.exists(config_path):
         try:
-            os.makedirs(documents, exist_ok=True)
-        except OSError:
-            documents = os.path.dirname(os.path.abspath(__file__))
+            with open(config_path, 'r') as f: data.update(json.load(f))
+        except: pass
+    elif os.path.exists("signatures.json"):
+        try:
+            with open("signatures.json", 'r') as f: data.update(json.load(f))
+        except: pass
+    return tuple((tag, re.compile(pat, re.I)) for tag, pat in data.items())
 
-    root_dir = os.path.join(documents, REPORT_ROOT_DIR)
-    
-    # 2. Add the date_str to the end of each path
-    dirs = {
-        "csv": os.path.join(root_dir, "csv", date_str),
-        "html": os.path.join(root_dir, "html", date_str),
-        "json": os.path.join(root_dir, "json", date_str),
-    }
-    
-    for d in dirs.values():
-        os.makedirs(d, exist_ok=True)
-        
-    return dirs
+def resolve_output_dir() -> str:
+    from .config import REPORT_ROOT_DIR
+    from datetime import datetime
+    documents = os.path.join(os.path.expanduser("~"), "Documents", REPORT_ROOT_DIR)
+    date_dir = os.path.join(documents, datetime.now().strftime("%d-%m-%Y"))
+    os.makedirs(date_dir, exist_ok=True)
+    return date_dir
 
-def make_output_paths(dirs: Dict[str, str]) -> Dict[str, str]:
-    ts = datetime.now().strftime("%H%M%S")
-    
-    # 1. Get the highest N by scanning the directory once
-    highest_n = 0
-    for filename in os.listdir(dirs["csv"]):
-        match = re.match(r"^(\d+)_", filename)
-        if match:
-            highest_n = max(highest_n, int(match.group(1)))
-            
-    n = highest_n + 1
-
+def make_output_paths(out_dir: str) -> dict:
+    from datetime import datetime
+    ts = datetime.now().strftime("%H-%M-%S")
     return {
-        "csv_integrity":  os.path.join(dirs["csv"], f"{n}_integrity_report_{ts}.csv"),
-        "csv_behavioral": os.path.join(dirs["csv"], f"{n}_threat_actors_{ts}.csv"),
-        "html":           os.path.join(dirs["html"], f"{n}_visual_report_{ts}.html"),
-        "json":           os.path.join(dirs["json"], f"{n}_forensic_data_{ts}.json"),
+        "csv_integrity": os.path.join(out_dir, f"1_{ts}_integrity.csv"),
+        "csv_behavioral": os.path.join(out_dir, f"2_{ts}_behavioral.csv"),
+        "html": os.path.join(out_dir, f"3_{ts}_dashboard.html"),
+        "json": os.path.join(out_dir, f"4_{ts}_report.json")
     }
-
 
 def to_file_url(filepath: str) -> str:
     """Safely converts an absolute file path to a clickable file:// URI."""

@@ -1,10 +1,11 @@
 import argparse
+import multiprocessing
 import os
 import sys
 
 from .config import PROJECT_NAME, PROJECT_VERSION, REPORT_ROOT_DIR, C
 from .engine import scan_log, load_ioc_feed
-from .utils import resolve_output_dir, make_output_paths, to_file_url
+from .utils import resolve_output_dir, make_output_paths, to_file_url, load_sigs
 from .reporting import (
     report_terminal, report_csv_integrity, 
     report_csv_behavioral, report_json, report_html
@@ -12,6 +13,8 @@ from .reporting import (
 from .web import launch_full_app
 
 def main():
+    multiprocessing.freeze_support()
+
     parser = argparse.ArgumentParser(
         description=f"{PROJECT_NAME} v{PROJECT_VERSION}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -50,7 +53,13 @@ Examples:
                         choices=["all", "terminal", "json", "csv", "html"],
                         default="all",
                         help="Output format(s) (default: all)")
+    parser.add_argument("--workers", "-w", type=int, default=None, help="Worker processes (default: 50% of CPU threads)")
+    parser.add_argument("--cpu-limit", "-c", type=float, default=25.0, help="Max CPU % per worker process")
+    
     args = parser.parse_args()
+
+    n_workers = args.workers or max(1, (os.cpu_count() or 2) // 2)
+    sigs = load_sigs()
 
 
     # --- NEW ROUTING LOGIC ---
@@ -78,8 +87,15 @@ Examples:
     if ioc_set:
         print(f"{C.CYAN}[*] IOC feed loaded: {len(ioc_set)} known-malicious IPs{C.RESET}")
 
-    result = scan_log(args.logfile, args.threshold,
-                      ioc_set=ioc_set, compare_filepath=args.compare)
+    result = scan_log(
+        args.logfile, 
+        args.threshold,
+        ioc_set=frozenset(ioc_set), 
+        compare_filepath=args.compare,
+        n_workers=n_workers,
+        cpu_limit_pct=args.cpu_limit,
+        sigs=sigs
+    )
 
     fmt = args.format
 
