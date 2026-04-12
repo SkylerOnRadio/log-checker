@@ -6,13 +6,11 @@ import socket
 import json
 import platform
 from datetime import datetime
-from typing import Dict
-from .config import REPORT_ROOT_DIR
-from typing import Tuple, Optional
-from .config import SIGS_FALLBACK
+from typing import Dict, Tuple, Optional
+from .config import REPORT_ROOT_DIR, SIGS_FALLBACK
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ── OUTPUT PATH RESOLUTION ────────────────────────────────────────────────────
+# ── SIGNATURES ────────────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def load_sigs(config_path: Optional[str] = None) -> Tuple[Tuple[str, re.Pattern], ...]:
@@ -28,23 +26,55 @@ def load_sigs(config_path: Optional[str] = None) -> Tuple[Tuple[str, re.Pattern]
         except: pass
     return tuple((tag, re.compile(pat, re.I)) for tag, pat in data.items())
 
-def resolve_output_dir() -> str:
-    from .config import REPORT_ROOT_DIR
-    from datetime import datetime
-    documents = os.path.join(os.path.expanduser("~"), "Documents", REPORT_ROOT_DIR)
-    date_dir = os.path.join(documents, datetime.now().strftime("%d-%m-%Y"))
-    os.makedirs(date_dir, exist_ok=True)
-    return date_dir
+# ═══════════════════════════════════════════════════════════════════════════════
+# ── OUTPUT PATH RESOLUTION ────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def make_output_paths(out_dir: str) -> dict:
-    from datetime import datetime
-    ts = datetime.now().strftime("%H-%M-%S")
-    return {
-        "csv_integrity": os.path.join(out_dir, f"1_{ts}_integrity.csv"),
-        "csv_behavioral": os.path.join(out_dir, f"2_{ts}_behavioral.csv"),
-        "html": os.path.join(out_dir, f"3_{ts}_dashboard.html"),
-        "json": os.path.join(out_dir, f"4_{ts}_report.json")
+def resolve_output_dir() -> Dict[str, str]:
+    """
+    Creates: ~/Documents/Reports - Log Detector/[csv|html|json]/DD-MM-YYYY/
+    """
+    date_str = datetime.now().strftime("%d-%m-%Y")
+    documents = os.path.join(os.path.expanduser("~"), "Documents", REPORT_ROOT_DIR)
+    
+    dirs = {
+        "csv":  os.path.join(documents, "csv", date_str),
+        "html": os.path.join(documents, "html", date_str),
+        "json": os.path.join(documents, "json", date_str),
     }
+    
+    # Create all necessary subdirectories
+    for d in dirs.values():
+        os.makedirs(d, exist_ok=True)
+        
+    return dirs
+
+def make_output_paths(dirs: Dict[str, str]) -> Dict[str, str]:
+    """
+    Generates file paths dynamically checking the directory for the Nth scan.
+    Format: x_filename_HH-MM-SS.ext
+    """
+    ts = datetime.now().strftime("%H-%M-%S")
+    
+    # Calculate 'x' by checking existing files in the 'csv' directory for today
+    highest_n = 0
+    for filename in os.listdir(dirs["csv"]):
+        match = re.match(r"^(\d+)_", filename)
+        if match:
+            highest_n = max(highest_n, int(match.group(1)))
+            
+    n = highest_n + 1
+
+    return {
+        "csv_integrity":  os.path.join(dirs["csv"], f"{n}_integrity_{ts}.csv"),
+        "csv_behavioral": os.path.join(dirs["csv"], f"{n}_behavioral_{ts}.csv"),
+        "html":           os.path.join(dirs["html"], f"{n}_dashboard_{ts}.html"),
+        "json":           os.path.join(dirs["json"], f"{n}_report_{ts}.json")
+    }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ── HELPER UTILS ──────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def to_file_url(filepath: str) -> str:
     """Safely converts an absolute file path to a clickable file:// URI."""
