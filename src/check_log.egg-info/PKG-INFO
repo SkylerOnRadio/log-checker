@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: check-log
-Version: 2.2.4
+Version: 3.0.0
 Summary: A security anomaly log generator and forensic analyzer
 Author-email: SkylerOnRadio <abhigyadulal@gmail.com>, Gaurav Deep <gauravdeepgd12007@gmail.com>
 License: MIT

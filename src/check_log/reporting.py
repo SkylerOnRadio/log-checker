@@ -188,6 +188,8 @@ def report_html(result: dict, filepath: str, path: str):
     stats      = result["stats"]
     eb         = result["entropy_baseline"]
 
+    esc = html.escape
+
     def tag_html(label: str, color: str = "blue") -> str:
         return f'<span class="tag tag-{color}">{html.escape(label)}</span>'
 
