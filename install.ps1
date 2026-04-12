@@ -46,82 +46,51 @@ if ([int]$verParts[0] -lt 3 -or ([int]$verParts[0] -eq 3 -and [int]$verParts[1] 
 Write-Ok "Python $verRaw found."
 
 # ─────────────────────────────────────────────
-#  2. Ensure pip is up to date (silently)
+#  2. Ensure pip is up to date
 # ─────────────────────────────────────────────
 Write-Step "Ensuring pip is up to date..."
 & $pythonCmd -m pip install --upgrade pip --quiet --no-warn-script-location
 Write-Ok "pip is ready."
 
 # ─────────────────────────────────────────────
-#  3. Install / upgrade pipx
+#  3. Install pipx & Force PATH Configuration
 # ─────────────────────────────────────────────
-Write-Step "Ensuring pipx is installed..."
+Write-Step "Ensuring pipx is installed and PATH is configured..."
 
-$pipxInPath = [bool](Get-Command pipx -ErrorAction SilentlyContinue)
+# Install/upgrade pipx silently
+& $pythonCmd -m pip install --user pipx --upgrade --quiet --no-warn-script-location
 
-if (-not $pipxInPath) {
-    Write-Note "pipx not found – installing via pip..."
-    & $pythonCmd -m pip install --user pipx --upgrade --quiet --no-warn-script-location
+# Define known installation paths for Windows
+$pipxBinDir = "$env:USERPROFILE\.local\bin"
+$pythonScriptsDir = "$env:APPDATA\Python\Scripts"
 
-    # Collect candidate pipx locations and add them to the current session PATH
-    $extraPaths = @(
-        "$env:USERPROFILE\.local\bin",
-        "$env:APPDATA\Python\Scripts",
-        # e.g. C:\Users\<user>\AppData\Local\Programs\Python\Python3xx\Scripts
-        (& $pythonCmd -c "import sysconfig; print(sysconfig.get_path('scripts'))" 2>$null)
-    ) | Where-Object { $_ -and (Test-Path $_) }
-
-    foreach ($p in $extraPaths) {
-        if ($env:PATH -notlike "*$p*") { $env:PATH = "$p;$env:PATH" }
+# --- A. Update Current Session PATH ---
+foreach ($dir in @($pipxBinDir, $pythonScriptsDir)) {
+    if (!(Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+    if ($env:PATH -notlike "*$dir*") {
+        $env:PATH = "$dir;$env:PATH"
     }
+}
 
-    # Make the PATH change permanent for future sessions
-    & $pythonCmd -m pipx ensurepath --quiet 2>$null
+# --- B. Run the official pipx path configurator ---
+& $pythonCmd -m pipx ensurepath --force --quiet 2>$null
 
-    # Re-check pipx is now reachable in this session
-    if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
-        # Fall back: always invoke via python -m pipx
-        Write-Warn "pipx command not yet in PATH for this session – using 'python -m pipx' as a fallback."
-        $pipxCmd = "$pythonCmd -m pipx"
-    } else {
-        $pipxCmd = "pipx"
-    }
-} else {
-    Write-Note "pipx already installed – upgrading..."
-    & $pythonCmd -m pip install --user pipx --upgrade --quiet --no-warn-script-location
+# --- C. Aggressively update User Registry PATH ---
+# (Guarantees permanence even if pipx ensurepath silently failed)
+$currentUserPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
+if ($currentUserPath -notlike "*$pipxBinDir*") {
+    [System.Environment]::SetEnvironmentVariable("PATH", "$pipxBinDir;$currentUserPath", "User")
+    Write-Note "Added pipx binary folder to your permanent system PATH."
+}
+
+# Determine how to call pipx for the rest of the script
+if (Get-Command pipx -ErrorAction SilentlyContinue) {
     $pipxCmd = "pipx"
-}
-Write-Ok "pipx is ready."
-
-Write-Step "Registering pipx bin directory in system PATH..."
-
-# Ask pipx where it puts executables
-$pipxBinDir = (& $pythonCmd -m pipx environment 2>$null |
-    Select-String "PIPX_BIN_DIR" |
-    ForEach-Object { ($_ -split "=", 2)[1].Trim() })
-
-if ($pipxBinDir -and (Test-Path $pipxBinDir)) {
-
-    # Add to current session immediately
-    if ($env:PATH -notlike "*$pipxBinDir*") {
-        $env:PATH = "$pipxBinDir;$env:PATH"
-    }
-
-    # Add permanently to the User PATH in the registry
-    $currentUserPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
-    if ($currentUserPath -notlike "*$pipxBinDir*") {
-        [System.Environment]::SetEnvironmentVariable(
-            "PATH",
-            "$currentUserPath;$pipxBinDir",
-            "User"
-        )
-        Write-Ok "Added '$pipxBinDir' to your permanent PATH."
-    } else {
-        Write-Note "'$pipxBinDir' is already in your PATH."
-    }
 } else {
-    Write-Warn "Could not detect pipx bin dir – run 'python -m pipx ensurepath' manually."
+    $pipxCmd = "$pythonCmd -m pipx"
 }
+
+Write-Ok "pipx is configured and ready."
 
 # ─────────────────────────────────────────────
 #  4. Install check-log via pipx
@@ -164,16 +133,12 @@ Write-Ok "Successfully installed 'check-log'!"
 #  5. Verify the command is actually reachable
 # ─────────────────────────────────────────────
 Write-Step "Verifying installation..."
-# Refresh PATH from registry so the newly installed tool is discoverable
-$machinePath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
-$userPath    = [System.Environment]::GetEnvironmentVariable("PATH", "User")
-$env:PATH    = "$userPath;$machinePath"
 
 if (Get-Command check-log -ErrorAction SilentlyContinue) {
     Write-Ok "'check-log' is available in this session right now."
     $needsRestart = $false
 } else {
-    Write-Warn "'check-log' will be available after you restart your terminal."
+    Write-Warn "'check-log' installed successfully, but requires a terminal restart to become visible."
     $needsRestart = $true
 }
 
