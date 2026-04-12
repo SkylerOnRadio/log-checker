@@ -21,7 +21,7 @@ fi
 
 echo -e "${CYAN}[*] Downloading and compiling from GitHub...${NC}"
 # Notice how we use the git+ URL here instead of a local directory!
-if pipx install --force git+https://github.com/SkylerOnRadio/best-team.git; then
+if pipx install --force git+https://github.com/SkylerOnRadio/log-checker.git; then
     pipx ensurepath &> /dev/null
     echo -e "\n${GREEN}=======================================${NC}"
     echo -e "${GREEN}        INSTALLATION COMPLETE!         ${NC}"
