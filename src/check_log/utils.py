@@ -79,7 +79,7 @@ def get_system_metadata() -> Dict:
         "ts":   datetime.now().isoformat(),
     }
 
-def _open_log(filepath: str):
+def open_log(filepath: str):
     """Open plain, gzip, or bz2 log files transparently."""
     if filepath.endswith(".gz"):
         return gzip.open(filepath, "rt", encoding="utf-8", errors="replace")
