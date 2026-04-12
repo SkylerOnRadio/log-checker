@@ -33,7 +33,7 @@ def _compare_profile(filepath2: str, baseline_ip_stats: Dict) -> Dict:
     """Compare second log file — report IPs absent from baseline (new actors)."""
     new_ips = set()
     try:
-        with _open_log(filepath2) as fh:
+        with open_log(filepath2) as fh:
             for line in fh:
                 m = IP_PATTERN.search(line)
                 if m:
@@ -57,7 +57,7 @@ def scan_log(filepath: str, threshold_seconds: float,
     # ── Phase 0: Entropy Baseline Calibration ────────────────────────────────
     baseline_lines = []
     try:
-        with _open_log(filepath) as fh:
+        with open_log(filepath) as fh:
             for i, line in enumerate(fh):
                 if i >= ENTROPY_BASELINE_LINES:
                     break
@@ -84,7 +84,7 @@ def scan_log(filepath: str, threshold_seconds: float,
     time_buckets: Dict[int, List[Tuple[str, bool]]] = defaultdict(list)
 
     try:
-        with _open_log(filepath) as fh:
+        with open_log(filepath) as fh:
             for line_no, line in enumerate(fh, start=1):
                 total_lines += 1
                 line_content = line.rstrip("\n")
