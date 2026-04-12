@@ -29,16 +29,25 @@ if (!(Get-Command pipx -ErrorAction SilentlyContinue)) {
     Write-Host "    pipx is already installed." -ForegroundColor DarkGray
 }
 
-# 3. Find the directory of this script (so it installs correctly from anywhere)
+# 3. Find the directory of this script
 $ScriptDir = $PSScriptRoot
-# Fallback in case the script is dot-sourced
 if ([string]::IsNullOrEmpty($ScriptDir)) { $ScriptDir = (Get-Location).Path }
 
 # 4. Install the package securely via pipx
 Write-Host "[*] Building and isolating package via pipx..." -ForegroundColor Cyan
 try {
-    # Using 'python -m pipx' instead of just 'pipx' handles edge cases where the PATH hasn't refreshed
-    python -m pipx install --force "$ScriptDir"
+    # If $PSScriptRoot is empty, it means they ran the 'irm | iex' command!
+    if ([string]::IsNullOrEmpty($PSScriptRoot)) {
+        Write-Host "    Web installer detected. Pulling directly from GitHub..." -ForegroundColor DarkGray
+        
+        # USE THIS ZIP URL: It bypasses the need for the user to have Git installed!
+        python -m pipx install https://github.com/SkylerOnRadio/log-checker/archive/refs/heads/main.zip --force
+    
+    } else {
+        # Local Installation (They downloaded the folder and double-clicked install.ps1)
+        Write-Host "    Local installation detected." -ForegroundColor DarkGray
+        python -m pipx install --force "$PSScriptRoot"
+    }
     Write-Host "[+] Successfully installed 'check-log'!" -ForegroundColor Green
 } catch {
     Write-Host "[!] Installation failed. Please check the error output above." -ForegroundColor Red
