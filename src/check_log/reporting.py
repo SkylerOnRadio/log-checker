@@ -187,84 +187,45 @@ def report_html(result: dict, filepath: str, path: str):
     perf       = result["performance"]
     stats      = result["stats"]
     eb         = result["entropy_baseline"]
+    esc        = html.escape
 
-    esc = html.escape
+    def tag_html(label: str, color: str = "blue") -> str: 
+        return f'<span class="tag tag-{color}">{esc(label)}</span>'
+        
+    def zone_count_cls(items) -> str: 
+        return "ok" if not items else ""
 
-    def tag_html(label: str, color: str = "blue") -> str:
-        return f'<span class="tag tag-{color}">{html.escape(label)}</span>'
-
-    def gen_threat_rows(subset: list) -> str:
-        if not subset:
-            return '<tr><td colspan="5" class="no-data">No threats detected in this zone.</td></tr>'
-        rows = []
+    def gen_rows(subset: list) -> str:
+        if not subset: return '<tr><td colspan="5" class="no-data">No threats detected in this zone.</td></tr>'
+        out = []
         for t in subset:
-            kc_badge  = f'<span class="kc-badge">KC:{t["kill_chain_score"]}</span>' if t["kill_chain_score"] >= 2 else ""
-            ioc_badge = tag_html("IOC", "red") if t.get("is_ioc") else ""
-            tag_str   = " ".join(
-                tag_html(tg, "red" if tg in ("KILL_CHAIN_DETECTED", "KNOWN_MALICIOUS_IOC",
-                                             "LOG_TAMPERING", "DATA_EXFIL") else "blue")
-                for tg in t["risk_tags"]
-            )
-            rows.append(
-                f"<tr>"
-                f"<td><strong>{html.escape(t['ip'])}</strong>{ioc_badge}</td>"
-                f"<td>{t['hits']}</td>"
-                f"<td>{t['session_count']}</td>"
-                f"<td>{kc_badge}</td>"
-                f"<td>{tag_str}</td>"
-                f"</tr>"
-            )
-        return "".join(rows)
+            kc_b  = f'<span class="kc-badge">KC:{t["kill_chain_score"]}</span>' if t["kill_chain_score"] >= 2 else ""
+            ioc_b = tag_html("IOC","red") if t.get("is_ioc") else ""
+            tags  = " ".join(tag_html(tg, "red" if tg in ("KILL_CHAIN_DETECTED","KNOWN_MALICIOUS_IOC","LOG_TAMPERING","DATA_EXFIL") else "blue") for tg in t["risk_tags"])
+            out.append(f"<tr><td><strong>{esc(t['ip'])}</strong>{ioc_b}</td><td>{t['hits']}</td><td>{t['session_count']}</td><td>{kc_b}</td><td>{tags}</td></tr>")
+        return "".join(out)
 
-    def gap_rows(gap_type: str) -> str:
-        subset = [g for g in result["gaps"] if g["type"] == gap_type]
-        if not subset:
-            return '<tr><td colspan="4" class="no-data">None detected.</td></tr>'
-        return "".join(
-            f"<tr><td>{tag_html(g['severity'], 'red')}</td>"
-            f"<td>{html.escape(g.get('duration_human','N/A'))}</td>"
-            f"<td>{g['start_line']}–{g['end_line']}</td>"
-            f"<td>{html.escape(g['gap_start'][:19])}</td></tr>"
-            for g in subset
-        )
+    def gap_rows(gtype: str) -> str:
+        subset = [g for g in result["gaps"] if g["type"] == gtype]
+        if not subset: return '<tr><td colspan="4" class="no-data">None detected.</td></tr>'
+        return "".join(f"<tr><td>{tag_html(g['severity'],'red')}</td><td>{esc(g.get('duration_human','N/A'))}</td><td>{g.get('start_line', 'N/A')}–{g.get('end_line', 'N/A')}</td><td>{esc(g['gap_start'][:19])}</td></tr>" for g in subset)
 
-    # Threat category subsets
-    priv_esc    = [t for t in result["threats"] if "PRIV_ESCALATION"    in t["risk_tags"]]
-    brute_force = [t for t in result["threats"] if "BRUTE_FORCE_BURST"  in t["risk_tags"]
-                                                or "FAILED_LOGIN"       in t["risk_tags"]]
-    distributed = [t for t in result["threats"] if "DISTRIBUTED_ATTACK" in t["risk_tags"]]
-    log_tamper  = [t for t in result["threats"] if "LOG_TAMPERING"      in t["risk_tags"]]
-    exfil       = [t for t in result["threats"] if "DATA_EXFIL"         in t["risk_tags"]]
-    lateral     = [t for t in result["threats"] if "LATERAL_MOVEMENT"   in t["risk_tags"]]
+    priv_esc    = [t for t in result["threats"] if "PRIV_ESCALATION"     in t["risk_tags"]]
+    brute_force = [t for t in result["threats"] if "BRUTE_FORCE_BURST"   in t["risk_tags"] or "FAILED_LOGIN" in t["risk_tags"]]
+    distributed = [t for t in result["threats"] if "DISTRIBUTED_ATTACK"  in t["risk_tags"]]
+    log_tamper  = [t for t in result["threats"] if "LOG_TAMPERING"       in t["risk_tags"]]
+    exfil       = [t for t in result["threats"] if "DATA_EXFIL"          in t["risk_tags"]]
+    lateral     = [t for t in result["threats"] if "LATERAL_MOVEMENT"    in t["risk_tags"]]
     kill_chain  = [t for t in result["threats"] if "KILL_CHAIN_DETECTED" in t["risk_tags"]]
-    entropy_hits= [t for t in result["threats"] if "HIGH_ENTROPY_PAYLOAD" in t["risk_tags"]]
+    ent_hits    = [t for t in result["threats"] if "HIGH_ENTROPY_PAYLOAD" in t["risk_tags"]]
     ioc_hits    = [t for t in result["threats"] if t.get("is_ioc")]
 
     max_hits = max((t["hits"] for t in result["threats"]), default=1)
-    actor_bars = ""
-    for t in sorted(result["threats"], key=lambda x: x["hits"], reverse=True)[:10]:
-        pct = int(t["hits"] / max_hits * 100)
-        col = ("#ef4444" if "KILL_CHAIN_DETECTED" in t["risk_tags"] else
-               "#f59e0b" if t["kill_chain_score"] >= 2 else "#3b82f6")
-        actor_bars += (
-            f'<div class="actor-row">'
-            f'<span class="actor-ip">{html.escape(t["ip"])}</span>'
-            f'<div class="actor-bar-wrap"><div class="actor-bar" style="width:{pct}%;background:{col}"></div></div>'
-            f'<span class="actor-hits">{t["hits"]}</span>'
-            f'</div>'
-        )
+    actor_bars = "".join(f'<div class="actor-row"><span class="actor-ip">{esc(t["ip"])}</span><div class="actor-bar-wrap"><div class="actor-bar" style="width:{int(t["hits"]/max_hits*100)}%;background:{"#ef4444" if "KILL_CHAIN_DETECTED" in t["risk_tags"] else "#f59e0b" if t["kill_chain_score"] >= 2 else "#3b82f6"}"></div></div><span class="actor-hits">{t["hits"]}</span></div>' for t in sorted(result["threats"], key=lambda x: x["hits"], reverse=True)[:10])
 
-    compare_section = ""
+    compare_html = ""
     if result.get("compare") and result["compare"]["count"]:
-        new_ip_list = ", ".join(result["compare"]["new_actors"][:20])
-        compare_section = f"""
-        <div class="card">
-            <h3>🔄 Comparative Analysis – New Actors</h3>
-            <p style="color:var(--secondary);font-size:13px;">
-                {result['compare']['count']} IPs found in comparison file not present in baseline.
-            </p>
-            <p style="font-family:monospace;font-size:12px;word-break:break-all;">{html.escape(new_ip_list)}</p>
-        </div>"""
+        compare_html = f"""<div class="card"><h3>🔄 New Actors vs Baseline</h3><p style="color:var(--secondary);font-size:13px;">{result['compare']['count']} previously unseen IPs.</p><p style="font-family:monospace;font-size:12px;word-break:break-all;">{esc(", ".join(result['compare']['new_actors'][:20]))}</p></div>"""
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en"><head>
