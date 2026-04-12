@@ -1,0 +1,114 @@
+# 🔍 Log Detector & Foreign Threat Analysis
+
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-2.1.0-brightgreen.svg)](https://github.com/SkylerOnRadio/best-team)
+
+A blazing-fast, modular security anomaly log analyzer and forensic generation tool.
+
+**Log Detector** ingests raw server logs (Plain, GZIP, or BZ2) and utilizes Shannon Entropy calculations, Kill-Chain correlation, and Distributed Attack Detection to instantly assess the probability of system compromise. It generates beautiful HTML dashboards, CSV datasets, and JSON forensic reports.
+
+---
+
+## ✨ Features
+
+- **🧠 Dynamic Entropy Baselines**: Automatically calibrates to your log format to detect obfuscated payloads and packed commands.
+- **🔗 Kill-Chain Tracking**: Reconstructs attacker sessions and flags sequential multi-stage intrusions.
+- **🌐 Distributed Attack Detection**: Identifies coordinated brute-force storms across multiple IPs.
+- **⏱️ Timeline Integrity Checking**: Flags suspicious log gaps and reversed timestamps (anti-forensic tampering).
+- **🖥️ Full Web Dashboard**: Ships with an optional local React/Flask web dashboard for visual analysis.
+
+---
+
+## 🚀 Instant Installation
+
+The tool is packaged for strict, isolated installation so it won't conflict with your system's Python packages.
+
+### Option 1: Install via Git (Recommended)
+
+You can clone the repository and run our automated install script. Make sure you have [`pipx`](https://pipx.pypa.io/stable/installation/) installed on your system.
+
+**Linux / macOS:**
+
+```bash
+pipx install git+https://github.com/SkylerOnRadio/log-checker.git
+```
+
+Windows:
+
+```powershell
+code Powershell
+
+git clone https://github.com/SkylerOnRadio/log-checker.git
+cd best-team
+.\install.ps1
+```
+
+🎉 That's it! You can now use the check-log command from any directory on your computer.
+💻 Usage & CLI Commands
+
+Once installed, the check-log command is globally available in your terminal.
+
+Basic Scan (Terminal Report):
+code Bash
+
+check-log /var/log/auth.log
+
+Launch the Full Web Dashboard:
+Pass the directory containing your backend and frontend to instantly boot up the visual dashboard.
+code Bash
+
+check-log auth.log -a ./dashboard_directory
+
+Advanced Forensic Scans:
+code Bash
+
+# Provide a known-bad IP feed
+
+check-log access.log --ioc-feed known_bad_ips.txt
+
+# Adjust the timeline gap threshold (e.g., 120 seconds) and scan compressed logs
+
+check-log auth.log.gz -t 120
+
+# Output specific formats only (html, csv, json, terminal, all)
+
+check-log system.log -f html
+
+📂 Output & Reports
+
+By default, the tool automatically generates and stores forensic reports inside your Documents folder organized by date.
+code Text
+
+~/Documents/Forensic_Reports/
+├── csv/
+│ ├── YYYY-MM-DD/
+│ │ ├── 1_integrity_report_140522.csv
+│ │ └── 1_threat_actors_140522.csv
+├── html/
+│ └── YYYY-MM-DD/
+│ └── 1_visual_report_140522.html
+└── json/
+└── YYYY-MM-DD/
+└── 1_forensic_data_140522.json
+
+🛠️ Local Development
+
+If you want to modify the code and test it locally without reinstalling:
+
+    Clone the repo: git clone https://github.com/SkylerOnRadio/best-team.git
+
+    Change directory: cd best-team
+
+    Install in editable mode: pip install -e .
+
+Now, any changes you make to the Python files in the src/ directory will instantly be reflected when you run check-log!
+👥 Authors
+
+    SkylerOnRadio (abhigyadulal@gmail.com)
+
+    Gaurav Deep (gauravdeepgd12007@gmail.com)
+
+📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
