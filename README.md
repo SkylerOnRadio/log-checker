@@ -34,6 +34,12 @@ You can clone the repository and run our automated install script. Make sure you
 pipx install git+https://github.com/SkylerOnRadio/log-checker.git
 ```
 
+You can install `check-log` instantly using `curl`. *(Requires `pipx` to be installed on your system).*
+
+**Run this single line in your terminal:**
+```bash
+curl -sSL https://raw.githubusercontent.com/SkylerOnRadio/log-checker/main/get-check-log.sh | bash
+```
 Windows:
 
 ```powershell
