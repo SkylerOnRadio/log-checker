@@ -5,6 +5,15 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Set, Optional
 from .config import KILL_CHAIN_STAGES, TIMESTAMP_REGEXES, CURRENT_YEAR, SESSION_INACTIVITY_SEC
 
+CLEAN_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[\.\w:+-]*")
+CLEAN_IP_RE   = re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b")
+CLEAN_NUM_RE  = re.compile(r"\b\d+\b")
+CLEAN_STR_RE  = re.compile(r'["\'].*?["\']')
+CLEAN_SPACE_RE= re.compile(r"\s+")
+
+# global variable to store time format
+_cached_fmt_index = 0
+
 def calculate_entropy(data: str) -> float:
     """Shannon Entropy calculation after stripping known-good tokens."""
     if not data or len(data) < 10:
@@ -28,21 +37,26 @@ def compute_entropy_baseline(lines: List[str]) -> Tuple[float, float]:
     return mean, math.sqrt(variance)
 
 def log_template(line: str) -> str:
-    """Reduce a log line to its structural template by masking variables."""
-    t = re.sub(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "<IP>", line)
-    t = re.sub(r"\b\d+\b", "<N>", t)
-    t = re.sub(r'["\'].*?["\']', "<STR>", t)
-    t = re.sub(r"\s+", " ", t).strip()
+    """Uses pre-compiled regexes for massive speedups."""
+    t = CLEAN_IP_RE.sub("<IP>", line)
+    t = CLEAN_NUM_RE.sub("<N>", t)
+    t = CLEAN_STR_RE.sub("<STR>", t)
+    t = CLEAN_SPACE_RE.sub(" ", t).strip()
     return t[:120]
 
 def parse_timestamp(line: str) -> Tuple[Optional[datetime], Optional[str]]:
     """Parse timestamp from a log line, supporting multiple formats."""
+    global _cached_fmt_index
     now = datetime.now()
-    for regex, fmts, label in TIMESTAMP_REGEXES:
+
+    ordered_regexes = TIMESTAMP_REGEXES[_cached_fmt_index:] + TIMESTAMP_REGEXES[:_cached_fmt_index]
+
+    for i, (regex, fmts, label) in enumerate(ordered_regexes):
         m = regex.search(line)
         if not m:
             continue
         raw = m.group()
+
         if label == "Unix Epoch" and fmts is None:
             try:
                 epoch = int(raw[:10])
@@ -50,6 +64,7 @@ def parse_timestamp(line: str) -> Tuple[Optional[datetime], Optional[str]]:
             except (ValueError, OSError, OverflowError):
                 continue
         clean = re.sub(r"(?:Z|[+-]\d{2}:?\d{2}|[+-]\d{4})$", "", raw.strip("[]")).strip()
+
         for fmt in fmts:
             try:
                 if "%Y" not in fmt:
@@ -58,6 +73,10 @@ def parse_timestamp(line: str) -> Tuple[Optional[datetime], Optional[str]]:
                         dt = dt.replace(year=CURRENT_YEAR - 1)
                 else:
                     dt = datetime.strptime(clean, fmt)
+
+                actual_index = TIMESTAMP_REGEXES.index((regex, fmts, label))
+                _cached_fmt_index = actual_index
+                
                 return dt, label
             except ValueError:
                 continue

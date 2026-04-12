@@ -43,22 +43,21 @@ def resolve_output_dir() -> Dict[str, str]:
 
 def make_output_paths(dirs: Dict[str, str]) -> Dict[str, str]:
     ts = datetime.now().strftime("%H%M%S")
-    n = 1
-    while True:
-        c1 = os.path.join(dirs["csv"], f"{n}_integrity_report_{ts}.csv")
-        c2 = os.path.join(dirs["csv"], f"{n}_threat_actors_{ts}.csv")
-        h  = os.path.join(dirs["html"], f"{n}_visual_report_{ts}.html")
-        j  = os.path.join(dirs["json"], f"{n}_forensic_data_{ts}.json")
-        
-        if not (os.path.exists(c1) or os.path.exists(c2) or os.path.exists(h) or os.path.exists(j)):
-            break
-        n += 1
+    
+    # 1. Get the highest N by scanning the directory once
+    highest_n = 0
+    for filename in os.listdir(dirs["csv"]):
+        match = re.match(r"^(\d+)_", filename)
+        if match:
+            highest_n = max(highest_n, int(match.group(1)))
+            
+    n = highest_n + 1
 
     return {
-        "csv_integrity":  c1,
-        "csv_behavioral": c2,
-        "html":           h,
-        "json":           j,
+        "csv_integrity":  os.path.join(dirs["csv"], f"{n}_integrity_report_{ts}.csv"),
+        "csv_behavioral": os.path.join(dirs["csv"], f"{n}_threat_actors_{ts}.csv"),
+        "html":           os.path.join(dirs["html"], f"{n}_visual_report_{ts}.html"),
+        "json":           os.path.join(dirs["json"], f"{n}_forensic_data_{ts}.json"),
     }
 
 

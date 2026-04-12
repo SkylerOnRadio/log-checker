@@ -1,10 +1,14 @@
 import os
 import sys
 import subprocess
+import signal
 from typing import Optional
 from .config import C
 
 def launch_full_app(logfile: Optional[str], app_dir: str):
+
+    is_unix = os.name != 'nt'
+
     '''launches flask backend and frontend simultaneously from a specified directory'''
     # Resolve absolute path of the provided directory
     base_dir = os.path.abspath(app_dir)
@@ -25,7 +29,10 @@ def launch_full_app(logfile: Optional[str], app_dir: str):
         
     print(f"{C.DIM}[*] Starting Flask Backend...{C.RESET}")
     # Popen runs the process in the background
-    backend_process = subprocess.Popen(backend_cmd)
+    backend_process = subprocess.Popen(
+    backend_cmd, 
+    preexec_fn=os.setsid if is_unix else None
+)
 
     # 2. Start Frontend
     if not os.path.exists(os.path.join(frontend_dir, "package.json")):
@@ -38,7 +45,10 @@ def launch_full_app(logfile: Optional[str], app_dir: str):
     frontend_cmd = [npm_cmd, "run", "dev"]
     
     print(f"{C.DIM}[*] Starting React Frontend in {frontend_dir}...{C.RESET}")
-    frontend_process = subprocess.Popen(frontend_cmd, cwd=frontend_dir)
+    frontend_process = subprocess.Popen(
+    frontend_cmd, cwd=frontend_dir, 
+    preexec_fn=os.setsid if is_unix else None
+)
 
     # 3. Wait and watch for Ctrl+C
     try:
@@ -48,6 +58,10 @@ def launch_full_app(logfile: Optional[str], app_dir: str):
         frontend_process.wait()
     except KeyboardInterrupt:
         print(f"\n{C.YELLOW}[!] Shutting down servers gracefully...{C.RESET}")
-        backend_process.terminate()
-        frontend_process.terminate()
+        if is_unix:
+            os.killpg(os.getpgid(backend_process.pid), signal.SIGTERM)
+            os.killpg(os.getpgid(frontend_process.pid), signal.SIGTERM)
+        else:
+            backend_process.terminate()
+            frontend_process.terminate()
         sys.exit(0)
