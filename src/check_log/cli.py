@@ -53,8 +53,10 @@ Examples:
                         choices=["all", "terminal", "json", "csv", "html"],
                         default="all",
                         help="Output format(s) (default: all)")
-    parser.add_argument("--workers", "-w", type=int, default=None, help="Worker processes (default: 50% of CPU threads)")
-    parser.add_argument("--cpu-limit", "-c", type=float, default=25.0, help="Max CPU % per worker process")
+    parser.add_argument("--workers", "-w", type=int, default=None, 
+                        help="Worker processes (default: 50 percent of CPU threads)")
+    parser.add_argument("--cpu-limit", "-c", type=float, default=25.0, 
+                        help="Max CPU percent per worker process")
     
     args = parser.parse_args()
 
