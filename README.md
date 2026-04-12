@@ -86,6 +86,7 @@ check-log system.log -f html
 By default, the tool automatically generates and stores forensic reports inside your Documents folder organized by date.
 code Text
 
+```
 ~/Documents/Forensic_Reports/
 ├── csv/
 │ ├── YYYY-MM-DD/
@@ -97,6 +98,7 @@ code Text
 └── json/
 └── YYYY-MM-DD/
 └── 1_forensic_data_140522.json
+```
 
 🛠️ Local Development
 
