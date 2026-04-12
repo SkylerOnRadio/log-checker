@@ -210,6 +210,9 @@ def scan_log(filepath, threshold, ioc_set=frozenset(), compare_filepath=None, n_
         t_lines += res["t_lines"]; p_lines += res["p_lines"]; obf_cnt += res["obf_cnt"]
         log_type = log_type or res["log_type"]
         merged_templates.update(res["templates"])
+        # ── FIX: merge t_buckets from each worker (was silently dropped before) ──
+        for bucket_key, events in res["t_buckets"].items():
+            t_buckets[bucket_key].extend(events)
         for ip, s in res["ip_stats"].items():
             if ip not in merged_ip_stats: merged_ip_stats[ip] = s
             else:

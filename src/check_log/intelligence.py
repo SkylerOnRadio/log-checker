@@ -7,23 +7,55 @@ from typing import Dict, List, Tuple
 from .config import KILL_CHAIN_STAGES, MONTH_MAP, CURRENT_YEAR, SESSION_INACTIVITY_SEC
 
 def fast_parse_timestamp(line: str) -> Tuple[datetime, str]:
-    """Optimized slicing: 10x faster than strptime for core formats."""
+    """Optimized slicing: 10x faster than strptime for core formats.
+    
+    Handles:
+      - ISO-8601        : 2024-10-27T10:00:00  (line starts with date)
+      - Linux Syslog    : Oct 27 10:00:00       (line starts with month abbr)
+      - Apache/Nginx    : ... [27/Oct/2024:10:00:00 +0000] ...
+      - Windows Event   : 10/27/2024 10:00:00   (line starts with MM/DD/YYYY)
+    """
+    if not line or len(line) < 15:
+        return None, None
     try:
-        # ISO-8601 Check (2024-10-27...)
-        if line[4] == '-' and line[7] == '-':
-            return datetime(int(line[0:4]), int(line[5:7]), int(line[8:10]), 
+        # ── ISO-8601  (2024-10-27T10:00:00 or 2024-10-27 10:00:00) ──────────
+        if len(line) >= 19 and line[4] == '-' and line[7] == '-':
+            return datetime(int(line[0:4]), int(line[5:7]), int(line[8:10]),
                             int(line[11:13]), int(line[14:16]), int(line[17:19])), "ISO-8601"
 
-        # Linux Syslog Check (Oct 27 10:00:00)
+        # ── Linux Syslog  (Oct 27 10:00:00) ─────────────────────────────────
         month_abbr = line[0:3]
-        if month_abbr in MONTH_MAP:
+        if month_abbr in MONTH_MAP and len(line) >= 15:
             day = int(line[4:6].strip())
-            dt = datetime(CURRENT_YEAR, MONTH_MAP[month_abbr], day, 
+            dt = datetime(CURRENT_YEAR, MONTH_MAP[month_abbr], day,
                           int(line[7:9]), int(line[10:12]), int(line[13:15]))
             if dt > datetime.now() + timedelta(days=1):
                 dt = dt.replace(year=CURRENT_YEAR - 1)
             return dt, "Linux Syslog"
-    except: pass
+
+        # ── Apache/Nginx  (... [27/Oct/2024:10:00:00 +0000] ...) ────────────
+        # The bracket can appear at different offsets depending on IP length,
+        # so we search for it rather than slicing at a fixed position.
+        bracket = line.find('[')
+        if 0 < bracket < 50:                         # bracket must be near the start
+            ts_part = line[bracket + 1:]
+            if len(ts_part) >= 20 and ts_part[2] == '/' and ts_part[6] == '/':
+                day  = int(ts_part[0:2])
+                mon  = MONTH_MAP.get(ts_part[3:6])
+                if mon:
+                    year = int(ts_part[7:11])
+                    hour = int(ts_part[12:14])
+                    minu = int(ts_part[15:17])
+                    sec  = int(ts_part[18:20])
+                    return datetime(year, mon, day, hour, minu, sec), "Web (Apache/Nginx)"
+
+        # ── Windows Event  (10/27/2024 10:00:00) ────────────────────────────
+        if len(line) >= 19 and line[2] == '/' and line[5] == '/':
+            return datetime(int(line[6:10]), int(line[0:2]), int(line[3:5]),
+                            int(line[11:13]), int(line[14:16]), int(line[17:19])), "Windows Event"
+
+    except (ValueError, IndexError):
+        pass
     return None, None
 
 def calculate_entropy(data: str) -> float:
