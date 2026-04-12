@@ -93,6 +93,36 @@ if (-not $pipxInPath) {
 }
 Write-Ok "pipx is ready."
 
+Write-Step "Registering pipx bin directory in system PATH..."
+
+# Ask pipx where it puts executables
+$pipxBinDir = (& $pythonCmd -m pipx environment 2>$null |
+    Select-String "PIPX_BIN_DIR" |
+    ForEach-Object { ($_ -split "=", 2)[1].Trim() })
+
+if ($pipxBinDir -and (Test-Path $pipxBinDir)) {
+
+    # Add to current session immediately
+    if ($env:PATH -notlike "*$pipxBinDir*") {
+        $env:PATH = "$pipxBinDir;$env:PATH"
+    }
+
+    # Add permanently to the User PATH in the registry
+    $currentUserPath = [System.Environment]::GetEnvironmentVariable("PATH", "User")
+    if ($currentUserPath -notlike "*$pipxBinDir*") {
+        [System.Environment]::SetEnvironmentVariable(
+            "PATH",
+            "$currentUserPath;$pipxBinDir",
+            "User"
+        )
+        Write-Ok "Added '$pipxBinDir' to your permanent PATH."
+    } else {
+        Write-Note "'$pipxBinDir' is already in your PATH."
+    }
+} else {
+    Write-Warn "Could not detect pipx bin dir – run 'python -m pipx ensurepath' manually."
+}
+
 # ─────────────────────────────────────────────
 #  4. Install check-log via pipx
 # ─────────────────────────────────────────────
