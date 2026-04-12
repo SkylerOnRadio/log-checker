@@ -17,6 +17,28 @@ def _bar(value: int, max_val: int, width: int = 30, char: str = "█") -> str:
     filled = int(round(value / max_val * width)) if max_val else 0
     return char * filled + C.DIM + "░" * (width - filled) + C.RESET
 
+def print_banner():
+    C = "\033[38;2;90;184;240m"   # Bright pixel blue (Core blocks)
+    D = "\033[38;2;41;128;196m"   # Mid blue (Side/Top borders)
+    S = "\033[38;2;30;77;122m"    # Shadow blue (Bottom borders)
+    R = "\033[0m"                 # Reset
+    
+    print(f"""
+  {C}██{D}╗      {C}██████{D}╗   {C}██████{D}╗ 
+  {C}██{D}║     {C}██{D}╔{S}═══{C}██{D}╗ {C}██{D}╔{S}════╝ 
+  {C}██{D}║     {C}██{D}║   {C}██{D}║ {C}██{D}║  {C}███{D}╗
+  {C}██{D}║     {C}██{D}║   {C}██{D}║ {C}██{D}║   {C}██{D}║
+  {C}███████{D}╗{S}╚{C}██████{D}╔{S}╝ {S}╚{C}██████{D}╔{S}╝
+  {S}╚══════╝ ╚═════╝   ╚═════╝ {R}
+                           
+{C}██████{D}╗  {C}███████{D}╗ {C}████████{D}╗ {C}███████{D}╗  {C}██████{D}╗ {C}████████{D}╗  {C}██████{D}╗  {C}██████{D}╗ 
+{C}██{D}╔{S}══{C}██{D}╗ {C}██{D}╔{S}════╝ {S}╚══{C}██{D}╔{S}══╝ {C}██{D}╔{S}════╝ {C}██{D}╔{S}════╝ {S}╚══{C}██{D}╔{S}══╝ {C}██{D}╔{S}═══{C}██{D}╗ {C}██{D}╔{S}══{C}██{D}╗
+{C}██{D}║  {C}██{D}║ {C}█████{D}╗      {C}██{D}║    {C}█████{D}╗   {C}██{D}║         {C}██{D}║    {C}██{D}║   {C}██{D}║ {C}██████{D}╔{S}╝
+{C}██{D}║  {C}██{D}║ {C}██{D}╔{S}══╝      {C}██{D}║    {C}██{D}╔{S}══╝   {C}██{D}║         {C}██{D}║    {C}██{D}║   {C}██{D}║ {C}██{D}╔{S}══{C}██{D}╗
+{C}██████{D}╔{S}╝ {C}███████{D}╗    {C}██{D}║    {C}███████{D}╗ {S}╚{C}██████{D}╗    {C}██{D}║    {S}╚{C}██████{D}╔{S}╝ {C}██{D}║  {C}██{D}║
+{S}╚═════╝  ╚══════╝    ╚═╝    ╚══════╝  ╚═════╝    ╚═╝     ╚═════╝  ╚═╝  ╚═╝{R}
+""")
+
 def report_terminal(result: dict, filepath: str):
     risk     = _risk_score(result["gaps"], result["threats"])
     risk_col = C.RED if risk >= 75 else (C.YELLOW if risk >= 40 else C.GREEN)
@@ -27,12 +49,7 @@ def report_terminal(result: dict, filepath: str):
 
     W = 79
     print(f"\n{C.BOLD}{'━'*W}{C.RESET}")
-    print(f"{C.CYAN}  _     ___   ____   ____   _____   _____   _____   ____   _____   ___   ____  ")
-    print(f" | |   / _ \\ / ___| |  _ \\ | ____| |_   _| | ____| / ___| |_   _| / _ \\ |  _ \\ ")
-    print(f" | |  | | | | |  _  | | | | |  _|     | |   |  _|  | |       | |  | | | || |_) |")
-    print(f" | |__| |_| | |_| | | |_| | | |___    | |   | |__  | |___    | |  | |_| ||  _ < ")
-    print(f" |_____\\___/ \\____| |____/  |_____|   |_|   |_____| \\____|   |_|   \\___/ |_| \\_\\{C.RESET}")
-    print(f"")
+    print_banner()
     print(f" {C.BOLD}Foreign Threat Analysis | v{PROJECT_VERSION}{C.RESET}")
     print(f"{C.BOLD}{'━'*W}{C.RESET}")
 
