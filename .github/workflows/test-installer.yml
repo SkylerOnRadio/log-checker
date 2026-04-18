@@ -1,0 +1,37 @@
+name: Test Installers
+
+on:
+  push:
+    branches: [improve-installers]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run local installer
+        run: bash install.sh
+      - name: Verify command works
+        run: check-log --version
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run local installer
+        run: bash install.sh
+      - name: Verify command works
+        run: check-log --version
+
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run PowerShell installer
+        run: .\install.ps1
+        shell: powershell
+      - name: Verify command works
+        run: check-log --version
+        shell: powershell
