@@ -2,6 +2,9 @@
 
 <div align="center">
 
+<img width="1920" height="1080" alt="logDetector1" src="https://github.com/user-attachments/assets/75cf79fb-e004-483b-8b0b-65c43f343bf1" />
+
+
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-2.2.1-brightgreen.svg)](https://github.com/SkylerOnRadio/best-team)
