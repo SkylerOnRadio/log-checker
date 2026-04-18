@@ -4,9 +4,19 @@ import os
 import html
 from datetime import datetime
 
+# Add these new imports at the top of reporting.py
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.columns import Columns
+from rich import box
 from .config import (
-    C, PROJECT_NAME, PROJECT_VERSION, KILL_CHAIN_STAGES, 
-    DISTRIBUTED_ATTACK_WINDOW, ENTROPY_BASELINE_LINES
+    C,
+    PROJECT_NAME,
+    PROJECT_VERSION,
+    KILL_CHAIN_STAGES,
+    DISTRIBUTED_ATTACK_WINDOW,
+    ENTROPY_BASELINE_LINES,
 )
 from .utils import get_system_metadata
 from .intelligence import risk_score as _risk_score
@@ -17,12 +27,13 @@ def _bar(value: int, max_val: int, width: int = 30, char: str = "█") -> str:
     filled = int(round(value / max_val * width)) if max_val else 0
     return char * filled + C.DIM + "░" * (width - filled) + C.RESET
 
+
 def print_banner():
-    C = "\033[38;2;90;184;240m"   # Bright pixel blue (Core blocks)
-    D = "\033[38;2;41;128;196m"   # Mid blue (Side/Top borders)
-    S = "\033[38;2;30;77;122m"    # Shadow blue (Bottom borders)
-    R = "\033[0m"                 # Reset
-    
+    C = "\033[38;2;90;184;240m"  # Bright pixel blue (Core blocks)
+    D = "\033[38;2;41;128;196m"  # Mid blue (Side/Top borders)
+    S = "\033[38;2;30;77;122m"  # Shadow blue (Bottom borders)
+    R = "\033[0m"  # Reset
+
     print(f"""
   {C}██{D}╗      {C}██████{D}╗   {C}██████{D}╗ 
   {C}██{D}║     {C}██{D}╔{S}═══{C}██{D}╗ {C}██{D}╔{S}════╝ 
@@ -39,110 +50,210 @@ def print_banner():
 {S}╚═════╝  ╚══════╝    ╚═╝    ╚══════╝  ╚═════╝    ╚═╝     ╚═════╝  ╚═╝  ╚═╝{R}
 """)
 
+
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.table import Table
+from rich.columns import Columns
+from rich import box
+from rich.align import Align
+from rich.text import Text
+
+# ... [Keep your print_banner() and other imports here] ...
+
+
 def report_terminal(result: dict, filepath: str):
-    risk     = _risk_score(result["gaps"], result["threats"])
-    risk_col = C.RED if risk >= 75 else (C.YELLOW if risk >= 40 else C.GREEN)
-    perf     = result["performance"]
-    stats    = result["stats"]
-    eb       = result["entropy_baseline"]
+    console = Console()
+
+    # ─── EXTRACT DATA ─────────────────────────────────────────────────────────
+    risk = _risk_score(result["gaps"], result["threats"])
+    risk_col = "red" if risk >= 75 else ("dark_orange" if risk >= 40 else "green")
+    perf = result["performance"]
+    stats = result["stats"]
+    eb = result["entropy_baseline"]
     sys_info = get_system_metadata()
 
-    W = 79
-    print(f"\n{C.BOLD}{'━'*W}{C.RESET}")
-    print_banner()
-    print(f" {C.BOLD}Foreign Threat Analysis | v{PROJECT_VERSION}{C.RESET}")
-    print(f"{C.BOLD}{'━'*W}{C.RESET}")
+    # ─── THE ORIGINAL BANNER ──────────────────────────────────────────────────
+    print("\n")
+    print_banner()  # Call your original ASCII art function directly
 
-    print(f" {C.BOLD}[SYSTEM CONTEXT]{C.RESET}               {C.BOLD}[PERFORMANCE]{C.RESET}")
-    print(f"  Host : {sys_info['host']:<25} Time  : {perf['time']}s")
-    print(f"  OS   : {sys_info['os']:<25} Rate  : {perf['lps']:,} lines/sec")
-    print(f"  Type : {stats['log_type']:<25} Speed : {perf['mbps']} MB/s")
-    print(f"  Parse: {stats['parsed']:,} / {stats['total']:,} lines{'':<5} Workers: {perf['workers']}  CPU cap: {perf['cpu_limit']:.0f}%")
+    # Add a clean sub-header using rich
+    console.print(f"  [bold cyan]Foreign Threat Analysis | v{PROJECT_VERSION}[/]")
+    console.print(f"  [dim]Target: {filepath}[/]\n")
 
-    print(f"\n {C.BOLD}[ENTROPY BASELINE]{C.RESET}")
-    print(f"  Mean={eb['mean']:.3f}  StdDev={eb['std']:.3f}  "
-          f"Dynamic Threshold={C.YELLOW}{eb['threshold']:.3f}{C.RESET}  "
-          f"(calibrated on first {ENTROPY_BASELINE_LINES} lines)")
+    # ─── ROW 1: METRICS (4 Columns) ───────────────────────────────────────────
+    def make_metric(title, value, style="white"):
+        return Panel(
+            Align.center(Text(str(value), style=style, justify="center")),
+            title=title,
+            box=box.ROUNDED,
+        )
 
-    print(f"\n {C.BOLD}[RISK ASSESSMENT]{C.RESET}")
-    print(f"  Probability of Compromise: {risk_col}{C.BOLD}{risk:>3}%{C.RESET}  "
-          f"{risk_col}{_bar(risk, 100, width=42)}{C.RESET}")
+    metrics = Columns(
+        [
+            make_metric("Parsed Lines", f"{stats['parsed']:,}", "bold blue"),
+            make_metric("Throughput", f"{perf['mbps']} MB/s", "bold green"),
+            make_metric("Processing Time", f"{perf['time']}s", "bold yellow"),
+            make_metric("Active Workers", f"{perf['workers']}", "bold magenta"),
+        ],
+        expand=True,
+    )
+    console.print(metrics)
 
-    # Per-zone breakdown — only show zones with non-zero probability so the
-    # display stays clean on benign logs.
-    zone_labels = {
-        "integrity":    "Integrity   ",
-        "access":       "Access      ",
-        "persistence":  "Persistence ",
-        "privacy":      "Privacy     ",
-        "continuity":   "Continuity  ",
-        "exfiltration": "Exfiltration",
-        "lateral":      "Lateral Mvmt",
-    }
-    breakdown = result.get("risk_breakdown", {})
-    active_zones = [(z, p) for z, p in breakdown.items() if p > 0.0]
-    if active_zones:
-        print(f"\n {C.BOLD}[RISK ZONES]{C.RESET}")
-        for z, p in active_zones:
-            pct = int(p * 100)
-            z_col = C.RED if pct >= 75 else (C.YELLOW if pct >= 40 else C.GREEN)
-            print(f"  {zone_labels.get(z, z)}  {z_col}{pct:>3}%{C.RESET}  "
-                  f"{z_col}{_bar(pct, 100, width=30)}{C.RESET}")
+    # ─── ROW 2: RISK & INTELLIGENCE ───────────────────────────────────────────
+    # Left Side: System & Risk
+    sys_table = Table.grid(padding=(0, 2))
+    sys_table.add_column(style="dim", justify="right")
+    sys_table.add_column(style="bold white")
+    sys_table.add_row("Hostname:", sys_info["host"])
+    sys_table.add_row("Log Type:", stats["log_type"])
+    sys_table.add_row("CPU Cap:", f"{perf['cpu_limit']:.0f}%")
 
-    kc_actors = [t for t in result["threats"] if "KILL_CHAIN_DETECTED" in t["risk_tags"]]
-    if kc_actors:
-        print(f"\n {C.BOLD}{C.RED}[⚠  KILL-CHAIN CONFIRMED]{C.RESET}")
-        for kc in kc_actors[:3]:
-            stage_str = " → ".join(s for s in KILL_CHAIN_STAGES if s in kc["risk_tags"])
-            print(f"  {C.RED}{kc['ip']:<16}{C.RESET}  stages={kc['kill_chain_score']}  {C.DIM}{stage_str}{C.RESET}")
+    bar_len = 40
+    filled = int((risk / 100) * bar_len)
+    risk_bar = "█" * filled + "░" * (bar_len - filled)
 
-    dist_actors = [t for t in result["threats"] if "DISTRIBUTED_ATTACK" in t["risk_tags"]]
+    sys_group = Group(
+        sys_table,
+        Text("\nSystem Compromise Probability:", style="bold"),
+        Text(f"{risk:>3}% {risk_bar}", style=f"bold {risk_col}"),
+    )
+
+    # Right Side: Findings Summary
+    ioc_count = sum(1 for t in result["threats"] if t.get("is_ioc"))
+    find_table = Table.grid(padding=(0, 2))
+    find_table.add_column(style="bold white")
+    find_table.add_column()
+
+    find_table.add_row(
+        "Timeline Anomalies:",
+        f"[red]{len(result['gaps'])}[/]" if result["gaps"] else "[green]0[/]",
+    )
+    find_table.add_row(
+        "Active Entities:",
+        f"[{'red' if len(result['threats']) > 3 else 'dark_orange'}]{len(result['threats'])}[/]",
+    )
+    find_table.add_row("Obfuscated Payloads:", f"[yellow]{stats['obfuscated']}[/]")
+    find_table.add_row("Rare Templates:", f"[magenta]{stats['rare_templates']}[/]")
+    find_table.add_row(
+        "IOC Feed Matches:", f"[red]{ioc_count}[/]" if ioc_count else "[green]0[/]"
+    )
+    find_table.add_row(
+        "Entropy Threshold:", f"[dim]Θ=[/][yellow]{eb['threshold']:.3f}[/]"
+    )
+
+    console.print(
+        Columns(
+            [
+                Panel(
+                    sys_group,
+                    title="[bold]System Intelligence[/]",
+                    box=box.ROUNDED,
+                    border_style=risk_col,
+                ),
+                Panel(
+                    find_table,
+                    title="[bold]Forensic Overview[/]",
+                    box=box.ROUNDED,
+                    border_style="magenta",
+                ),
+            ],
+            expand=True,
+        )
+    )
+
+    # ─── ALERTS SECTION ───────────────────────────────────────────────────────
+    alerts = []
+    kc_actors = [
+        t for t in result["threats"] if "KILL_CHAIN_DETECTED" in t["risk_tags"]
+    ]
+    for kc in kc_actors[:3]:
+        alerts.append(
+            f"[bold red]⚠ KILL-CHAIN CONFIRMED:[/] {kc['ip']} (Progression Stages: {kc['kill_chain_score']})"
+        )
+
+    dist_actors = [
+        t for t in result["threats"] if "DISTRIBUTED_ATTACK" in t["risk_tags"]
+    ]
     if dist_actors:
-        print(f"\n {C.BOLD}{C.YELLOW}[🌐 DISTRIBUTED ATTACK DETECTED]{C.RESET}")
-        print(f"  {len(dist_actors)} IPs participated in coordinated login storm")
+        alerts.append(
+            f"[bold dark_orange]🌐 DISTRIBUTED ATTACK:[/] {len(dist_actors)} IPs in coordinated swarm"
+        )
 
-    print(f"\n {C.BOLD}[FORENSIC FINDINGS]{C.RESET}")
-    gap_col    = C.RED if result["gaps"] else C.GREEN
-    threat_col = C.RED if len(result["threats"]) > 3 else (C.YELLOW if result["threats"] else C.GREEN)
-    ioc_count  = sum(1 for t in result["threats"] if t.get("is_ioc"))
+    if alerts:
+        console.print(Panel("\n".join(alerts), box=box.HEAVY, border_style="red"))
 
-    print(f"  Timeline Integrity  : {gap_col}{len(result['gaps']):>3} anomalies detected{C.RESET}")
-    print(f"  Threat Entities     : {threat_col}{len(result['threats']):>3} active actors{C.RESET}")
-    print(f"  Obfuscation Markers : {C.YELLOW}{stats['obfuscated']:>3} suspicious payloads{C.RESET}")
-    print(f"  Rare Log Templates  : {C.MAGENTA}{stats['rare_templates']:>3} anomalous structures{C.RESET}")
-    print(f"  IOC Feed Matches    : {C.RED if ioc_count else C.GREEN}{ioc_count:>3} known-malicious IPs{C.RESET}")
-    if result.get("compare"):
-        print(f"  New Actors (compare): {C.YELLOW}{result['compare']['count']:>3} previously unseen IPs{C.RESET}")
-
+    # ─── TOP THREAT ACTORS TABLE ──────────────────────────────────────────────
     if result["threats"]:
-        print(f"\n {C.BOLD}[TOP THREAT ACTORS]{C.RESET}")
-        print(f"  {'ENTITY (IP)':<17}| {'HITS':<7}| {'KC':<4}| {'SESS':<5}| RISK INDICATORS")
-        print(f"  {'-'*17}+-{'-'*7}+-{'-'*4}+-{'-'*5}+-{'-'*38}")
-        sorted_threats = sorted(result["threats"],
-                                key=lambda x: (x["kill_chain_score"], x["hits"]),
-                                reverse=True)
-        for t in sorted_threats[:8]:
+        threat_tb = Table(
+            box=box.ROUNDED, expand=True, border_style="cyan", header_style="bold cyan"
+        )
+        threat_tb.add_column("Threat Entity (IP)", justify="left")
+        threat_tb.add_column("Hits", justify="right")
+        threat_tb.add_column("KC", justify="center")
+        threat_tb.add_column("Sessions", justify="center")
+        threat_tb.add_column("Risk Indicators", style="dim")
+
+        sorted_threats = sorted(
+            result["threats"],
+            key=lambda x: (x["kill_chain_score"], x["hits"]),
+            reverse=True,
+        )[:8]
+        for t in sorted_threats:
             tags_str = ", ".join(t["risk_tags"][:3])
-            ioc_flag = f" {C.RED}[IOC]{C.RESET}" if t.get("is_ioc") else ""
-            kc_col   = C.RED if t["kill_chain_score"] >= 3 else C.YELLOW
-            print(f"  {C.YELLOW}{t['ip']:<17}{C.RESET}| {t['hits']:<7}| "
-                  f"{kc_col}{t['kill_chain_score']:<4}{C.RESET}| "
-                  f"{t['session_count']:<5}| {C.GREY}{tags_str}{C.RESET}{ioc_flag}")
+            ioc_flag = " [red]\\[IOC][/]" if t.get("is_ioc") else ""
 
+            # Highlight highly dangerous IPs
+            ip_style = "bold red" if t["kill_chain_score"] >= 3 else "yellow"
+            kc_style = (
+                "bold white on red" if t["kill_chain_score"] >= 3 else "dark_orange"
+            )
+
+            threat_tb.add_row(
+                f"[{ip_style}]{t['ip']}[/]",
+                str(t["hits"]),
+                f"[{kc_style}] {t['kill_chain_score']} [/]",
+                str(t["session_count"]),
+                f"{tags_str}{ioc_flag}",
+            )
+        console.print(threat_tb)
+
+    # ─── TIMELINE ANOMALIES TABLE ─────────────────────────────────────────────
     if result["gaps"]:
-        print(f"\n {C.BOLD}[TIMELINE ANOMALIES]{C.RESET}")
-        print(f"  {'TYPE':<10} {'SEVERITY':<10} {'DURATION':<20} LINES")
-        print(f"  {'-'*10} {'-'*10} {'-'*20} {'-'*15}")
-        for g in result["gaps"][:6]:
-            sev_col = C.RED if g["severity"] == "CRITICAL" else C.YELLOW
-            print(f"  {g['type']:<10} {sev_col}{g['severity']:<10}{C.RESET} "
-                  f"{g.get('duration_human','N/A'):<20} {g['start_line']}-{g['end_line']}")
+        gap_tb = Table(
+            box=box.ROUNDED, expand=True, border_style="red", header_style="bold red"
+        )
+        gap_tb.add_column("Anomaly Type")
+        gap_tb.add_column("Severity")
+        gap_tb.add_column("Duration (H:M:S)")
+        gap_tb.add_column("Line Coordinates")
 
-    print(f"\n{C.BOLD}{'━'*W}{C.RESET}\n")
+        for g in result["gaps"][:6]:
+            sev_col = (
+                "bold white on red" if g["severity"] == "CRITICAL" else "dark_orange"
+            )
+            gap_tb.add_row(
+                g["type"],
+                f"[{sev_col}] {g['severity']} [/]",
+                g.get("duration_human", "N/A"),
+                f"L:{g['start_line']} → L:{g['end_line']}",
+            )
+        console.print(gap_tb)
+
+    console.print()
+
 
 def report_csv_integrity(result: dict, path: str):
-    fields = ["type", "gap_start", "gap_end", "duration_human",
-              "duration_seconds", "severity", "start_line", "end_line"]
+    fields = [
+        "type",
+        "gap_start",
+        "gap_end",
+        "duration_human",
+        "duration_seconds",
+        "severity",
+        "start_line",
+        "end_line",
+    ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
@@ -151,43 +262,57 @@ def report_csv_integrity(result: dict, path: str):
 
 
 def report_csv_behavioral(result: dict, path: str):
-    fields = ["ip", "hits", "span", "kill_chain_score",
-              "session_count", "is_ioc", "risk_tags"]
+    fields = [
+        "ip",
+        "hits",
+        "span",
+        "kill_chain_score",
+        "session_count",
+        "is_ioc",
+        "risk_tags",
+    ]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         for t in result["threats"]:
-            writer.writerow({
-                "ip":               t["ip"],
-                "hits":             t["hits"],
-                "span":             t["span"],
-                "kill_chain_score": t["kill_chain_score"],
-                "session_count":    t["session_count"],
-                "is_ioc":           t.get("is_ioc", False),
-                "risk_tags":        ", ".join(t["risk_tags"]),
-            })
+            writer.writerow(
+                {
+                    "ip": t["ip"],
+                    "hits": t["hits"],
+                    "span": t["span"],
+                    "kill_chain_score": t["kill_chain_score"],
+                    "session_count": t["session_count"],
+                    "is_ioc": t.get("is_ioc", False),
+                    "risk_tags": ", ".join(t["risk_tags"]),
+                }
+            )
 
 
 def report_json(result: dict, path: str):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, default=str)
 
+
 def _build_zone_breakdown_html(breakdown: dict) -> str:
     """Render the per-zone risk bars for the HTML report."""
     ZONE_META = {
-        "integrity":    ("⏱️ Integrity",    "Timeline gaps & reversed timestamps"),
-        "access":       ("🔐 Access",        "Login failures, brute force, privilege escalation"),
-        "persistence":  ("🪝 Persistence",   "Log-tampering & anti-forensic commands"),
-        "privacy":      ("🔒 Privacy",       "Sensitive file & credential access"),
-        "continuity":   ("💥 Continuity",    "Service crashes, kernel panics, OOM events"),
-        "exfiltration": ("📤 Exfiltration",  "Data-transfer & reverse-shell indicators"),
-        "lateral":      ("🌐 Lateral Mvmt",  "SSH pivoting, PsExec, remote management tools"),
+        "integrity": ("⏱️ Integrity", "Timeline gaps & reversed timestamps"),
+        "access": ("🔐 Access", "Login failures, brute force, privilege escalation"),
+        "persistence": ("🪝 Persistence", "Log-tampering & anti-forensic commands"),
+        "privacy": ("🔒 Privacy", "Sensitive file & credential access"),
+        "continuity": ("💥 Continuity", "Service crashes, kernel panics, OOM events"),
+        "exfiltration": ("📤 Exfiltration", "Data-transfer & reverse-shell indicators"),
+        "lateral": ("🌐 Lateral Mvmt", "SSH pivoting, PsExec, remote management tools"),
     }
     rows = []
     for zone, (label, note) in ZONE_META.items():
-        p   = breakdown.get(zone, 0.0)
+        p = breakdown.get(zone, 0.0)
         pct = int(p * 100)
-        col = "#ef4444" if pct >= 75 else ("#f59e0b" if pct >= 40 else "#10b981" if pct > 0 else "#d1d5db")
+        col = (
+            "#ef4444"
+            if pct >= 75
+            else ("#f59e0b" if pct >= 40 else "#10b981" if pct > 0 else "#d1d5db")
+        )
         rows.append(f"""
   <div class="zb-row">
     <span class="zb-lbl">{label}</span>
@@ -197,52 +322,91 @@ def _build_zone_breakdown_html(breakdown: dict) -> str:
   <div class="zb-note">{note}</div>""")
     return "\n".join(rows)
 
-def report_html(result: dict, filepath: str, path: str):
-    risk       = _risk_score(result["gaps"], result["threats"])
-    risk_color = "#ef4444" if risk >= 75 else ("#f59e0b" if risk >= 40 else "#10b981")
-    sys_info   = get_system_metadata()
-    perf       = result["performance"]
-    stats      = result["stats"]
-    eb         = result["entropy_baseline"]
-    esc        = html.escape
 
-    def tag_html(label: str, color: str = "blue") -> str: 
+def report_html(result: dict, filepath: str, path: str):
+    risk = _risk_score(result["gaps"], result["threats"])
+    risk_color = "#ef4444" if risk >= 75 else ("#f59e0b" if risk >= 40 else "#10b981")
+    sys_info = get_system_metadata()
+    perf = result["performance"]
+    stats = result["stats"]
+    eb = result["entropy_baseline"]
+    esc = html.escape
+
+    def tag_html(label: str, color: str = "blue") -> str:
         return f'<span class="tag tag-{color}">{esc(label)}</span>'
-        
-    def zone_count_cls(items) -> str: 
+
+    def zone_count_cls(items) -> str:
         return "ok" if not items else ""
 
     def gen_rows(subset: list) -> str:
-        if not subset: return '<tr><td colspan="5" class="no-data">No threats detected in this zone.</td></tr>'
+        if not subset:
+            return '<tr><td colspan="5" class="no-data">No threats detected in this zone.</td></tr>'
         out = []
         for t in subset:
-            kc_b  = f'<span class="kc-badge">KC:{t["kill_chain_score"]}</span>' if t["kill_chain_score"] >= 2 else ""
-            ioc_b = tag_html("IOC","red") if t.get("is_ioc") else ""
-            tags  = " ".join(tag_html(tg, "red" if tg in ("KILL_CHAIN_DETECTED","KNOWN_MALICIOUS_IOC","LOG_TAMPERING","DATA_EXFIL") else "blue") for tg in t["risk_tags"])
-            out.append(f"<tr><td><strong>{esc(t['ip'])}</strong>{ioc_b}</td><td>{t['hits']}</td><td>{t['session_count']}</td><td>{kc_b}</td><td>{tags}</td></tr>")
+            kc_b = (
+                f'<span class="kc-badge">KC:{t["kill_chain_score"]}</span>'
+                if t["kill_chain_score"] >= 2
+                else ""
+            )
+            ioc_b = tag_html("IOC", "red") if t.get("is_ioc") else ""
+            tags = " ".join(
+                tag_html(
+                    tg,
+                    "red"
+                    if tg
+                    in (
+                        "KILL_CHAIN_DETECTED",
+                        "KNOWN_MALICIOUS_IOC",
+                        "LOG_TAMPERING",
+                        "DATA_EXFIL",
+                    )
+                    else "blue",
+                )
+                for tg in t["risk_tags"]
+            )
+            out.append(
+                f"<tr><td><strong>{esc(t['ip'])}</strong>{ioc_b}</td><td>{t['hits']}</td><td>{t['session_count']}</td><td>{kc_b}</td><td>{tags}</td></tr>"
+            )
         return "".join(out)
 
     def gap_rows(gtype: str) -> str:
         subset = [g for g in result["gaps"] if g["type"] == gtype]
-        if not subset: return '<tr><td colspan="4" class="no-data">None detected.</td></tr>'
-        return "".join(f"<tr><td>{tag_html(g['severity'],'red')}</td><td>{esc(g.get('duration_human','N/A'))}</td><td>{g.get('start_line', 'N/A')}–{g.get('end_line', 'N/A')}</td><td>{esc(g['gap_start'][:19])}</td></tr>" for g in subset)
+        if not subset:
+            return '<tr><td colspan="4" class="no-data">None detected.</td></tr>'
+        return "".join(
+            f"<tr><td>{tag_html(g['severity'], 'red')}</td><td>{esc(g.get('duration_human', 'N/A'))}</td><td>{g.get('start_line', 'N/A')}–{g.get('end_line', 'N/A')}</td><td>{esc(g['gap_start'][:19])}</td></tr>"
+            for g in subset
+        )
 
-    priv_esc    = [t for t in result["threats"] if "PRIV_ESCALATION"     in t["risk_tags"]]
-    brute_force = [t for t in result["threats"] if "BRUTE_FORCE_BURST"   in t["risk_tags"] or "FAILED_LOGIN" in t["risk_tags"]]
-    distributed = [t for t in result["threats"] if "DISTRIBUTED_ATTACK"  in t["risk_tags"]]
-    log_tamper  = [t for t in result["threats"] if "LOG_TAMPERING"       in t["risk_tags"]]
-    exfil       = [t for t in result["threats"] if "DATA_EXFIL"          in t["risk_tags"]]
-    lateral     = [t for t in result["threats"] if "LATERAL_MOVEMENT"    in t["risk_tags"]]
-    kill_chain  = [t for t in result["threats"] if "KILL_CHAIN_DETECTED" in t["risk_tags"]]
-    ent_hits    = [t for t in result["threats"] if "HIGH_ENTROPY_PAYLOAD" in t["risk_tags"]]
-    ioc_hits    = [t for t in result["threats"] if t.get("is_ioc")]
+    priv_esc = [t for t in result["threats"] if "PRIV_ESCALATION" in t["risk_tags"]]
+    brute_force = [
+        t
+        for t in result["threats"]
+        if "BRUTE_FORCE_BURST" in t["risk_tags"] or "FAILED_LOGIN" in t["risk_tags"]
+    ]
+    distributed = [
+        t for t in result["threats"] if "DISTRIBUTED_ATTACK" in t["risk_tags"]
+    ]
+    log_tamper = [t for t in result["threats"] if "LOG_TAMPERING" in t["risk_tags"]]
+    exfil = [t for t in result["threats"] if "DATA_EXFIL" in t["risk_tags"]]
+    lateral = [t for t in result["threats"] if "LATERAL_MOVEMENT" in t["risk_tags"]]
+    kill_chain = [
+        t for t in result["threats"] if "KILL_CHAIN_DETECTED" in t["risk_tags"]
+    ]
+    ent_hits = [
+        t for t in result["threats"] if "HIGH_ENTROPY_PAYLOAD" in t["risk_tags"]
+    ]
+    ioc_hits = [t for t in result["threats"] if t.get("is_ioc")]
 
     max_hits = max((t["hits"] for t in result["threats"]), default=1)
-    actor_bars = "".join(f'<div class="actor-row"><span class="actor-ip">{esc(t["ip"])}</span><div class="actor-bar-wrap"><div class="actor-bar" style="width:{int(t["hits"]/max_hits*100)}%;background:{"#ef4444" if "KILL_CHAIN_DETECTED" in t["risk_tags"] else "#f59e0b" if t["kill_chain_score"] >= 2 else "#3b82f6"}"></div></div><span class="actor-hits">{t["hits"]}</span></div>' for t in sorted(result["threats"], key=lambda x: x["hits"], reverse=True)[:10])
+    actor_bars = "".join(
+        f'<div class="actor-row"><span class="actor-ip">{esc(t["ip"])}</span><div class="actor-bar-wrap"><div class="actor-bar" style="width:{int(t["hits"] / max_hits * 100)}%;background:{"#ef4444" if "KILL_CHAIN_DETECTED" in t["risk_tags"] else "#f59e0b" if t["kill_chain_score"] >= 2 else "#3b82f6"}"></div></div><span class="actor-hits">{t["hits"]}</span></div>'
+        for t in sorted(result["threats"], key=lambda x: x["hits"], reverse=True)[:10]
+    )
 
     compare_html = ""
     if result.get("compare") and result["compare"]["count"]:
-        compare_html = f"""<div class="card"><h3>🔄 New Actors vs Baseline</h3><p style="color:var(--secondary);font-size:13px;">{result['compare']['count']} previously unseen IPs.</p><p style="font-family:monospace;font-size:12px;word-break:break-all;">{esc(", ".join(result['compare']['new_actors'][:20]))}</p></div>"""
+        compare_html = f"""<div class="card"><h3>🔄 New Actors vs Baseline</h3><p style="color:var(--secondary);font-size:13px;">{result["compare"]["count"]} previously unseen IPs.</p><p style="font-family:monospace;font-size:12px;word-break:break-all;">{esc(", ".join(result["compare"]["new_actors"][:20]))}</p></div>"""
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en"><head>
@@ -306,54 +470,54 @@ footer{{text-align:center;color:var(--secondary);font-size:11px;padding:20px 0}}
 
 <div class="card">
   <h1>🔍 {esc(PROJECT_NAME)}</h1>
-  <p style="color:var(--secondary);margin:4px 0 4px;">Forensic Audit: <strong>{esc(os.path.basename(filepath))}</strong> &nbsp;·&nbsp; {sys_info['ts'][:19]}</p>
+  <p style="color:var(--secondary);margin:4px 0 4px;">Forensic Audit: <strong>{esc(os.path.basename(filepath))}</strong> &nbsp;·&nbsp; {sys_info["ts"][:19]}</p>
   <p style="margin-bottom:16px;font-size:12px;color:var(--secondary);">Saved to: <span class="fp">{esc(path)}</span></p>
   <div class="risk-meter"><div class="risk-fill"></div>
   <div class="risk-text">SYSTEM COMPROMISE PROBABILITY: {risk}%</div></div>
 </div>
 
 <div class="g4">
-  <div class="pill"><div class="val" style="color:{'#ef4444' if result['gaps'] else '#10b981'}">{len(result['gaps'])}</div><div class="lbl">Timeline Anomalies</div></div>
-  <div class="pill"><div class="val" style="color:#f59e0b">{len(result['threats'])}</div><div class="lbl">Threat Actors</div></div>
+  <div class="pill"><div class="val" style="color:{"#ef4444" if result["gaps"] else "#10b981"}">{len(result["gaps"])}</div><div class="lbl">Timeline Anomalies</div></div>
+  <div class="pill"><div class="val" style="color:#f59e0b">{len(result["threats"])}</div><div class="lbl">Threat Actors</div></div>
   <div class="pill"><div class="val" style="color:#7c3aed">{len(kill_chain)}</div><div class="lbl">Kill Chains</div></div>
   <div class="pill"><div class="val" style="color:#ef4444">{len(ioc_hits)}</div><div class="lbl">IOC Matches</div></div>
-  <div class="pill"><div class="val" style="color:#3b82f6">{stats['obfuscated']}</div><div class="lbl">Entropy Alerts</div></div>
+  <div class="pill"><div class="val" style="color:#3b82f6">{stats["obfuscated"]}</div><div class="lbl">Entropy Alerts</div></div>
   <div class="pill"><div class="val" style="color:#0891b2">{len(distributed)}</div><div class="lbl">Dist. Attackers</div></div>
-  <div class="pill"><div class="val">{stats['rare_templates']}</div><div class="lbl">Rare Templates</div></div>
-  <div class="pill"><div class="val" style="color:#10b981">{perf['lps']:,}</div><div class="lbl">Lines/sec</div></div>
-  <div class="pill"><div class="val" style="color:#10b981">{perf['mbps']}</div><div class="lbl">MB/sec</div></div>
-  <div class="pill"><div class="val">{perf['workers']}</div><div class="lbl">Workers Used</div></div>
-  <div class="pill"><div class="val" style="color:#7c3aed">{perf['cpu_limit']:.0f}%</div><div class="lbl">CPU Cap/Worker</div></div>
+  <div class="pill"><div class="val">{stats["rare_templates"]}</div><div class="lbl">Rare Templates</div></div>
+  <div class="pill"><div class="val" style="color:#10b981">{perf["lps"]:,}</div><div class="lbl">Lines/sec</div></div>
+  <div class="pill"><div class="val" style="color:#10b981">{perf["mbps"]}</div><div class="lbl">MB/sec</div></div>
+  <div class="pill"><div class="val">{perf["workers"]}</div><div class="lbl">Workers Used</div></div>
+  <div class="pill"><div class="val" style="color:#7c3aed">{perf["cpu_limit"]:.0f}%</div><div class="lbl">CPU Cap/Worker</div></div>
 </div>
 
 <div class="g2">
   <div class="card">
     <h3>💻 System Metadata</h3>
-    <div class="mr"><span class="ml">Hostname</span><span class="mv">{sys_info['host']}</span></div>
-    <div class="mr"><span class="ml">OS</span><span class="mv">{sys_info['os']} {sys_info['ver']}</span></div>
-    <div class="mr"><span class="ml">Architecture</span><span class="mv">{sys_info['arch']}</span></div>
-    <div class="mr"><span class="ml">Processor</span><span class="mv">{sys_info['cpu'] or 'N/A'}</span></div>
+    <div class="mr"><span class="ml">Hostname</span><span class="mv">{sys_info["host"]}</span></div>
+    <div class="mr"><span class="ml">OS</span><span class="mv">{sys_info["os"]} {sys_info["ver"]}</span></div>
+    <div class="mr"><span class="ml">Architecture</span><span class="mv">{sys_info["arch"]}</span></div>
+    <div class="mr"><span class="ml">Processor</span><span class="mv">{sys_info["cpu"] or "N/A"}</span></div>
   </div>
   <div class="card">
     <h3>📈 Analysis Intelligence</h3>
-    <div class="mr"><span class="ml">Log Type</span><span class="mv">{stats['log_type']}</span></div>
-    <div class="mr"><span class="ml">Throughput</span><span class="mv">{perf['lps']:,} lines/sec @ {perf['mbps']} MB/s</span></div>
-    <div class="mr"><span class="ml">Processing Time</span><span class="mv">{perf['time']}s ({perf['workers']} workers, CPU cap {perf['cpu_limit']:.0f}%)</span></div>
-    <div class="mr"><span class="ml">Entropy Baseline</span><span class="mv">μ={eb['mean']:.3f}  σ={eb['std']:.3f}  Θ={eb['threshold']:.3f}</span></div>
-    <div class="mr"><span class="ml">Parsed / Total</span><span class="mv">{stats['parsed']:,} / {stats['total']:,}</span></div>
+    <div class="mr"><span class="ml">Log Type</span><span class="mv">{stats["log_type"]}</span></div>
+    <div class="mr"><span class="ml">Throughput</span><span class="mv">{perf["lps"]:,} lines/sec @ {perf["mbps"]} MB/s</span></div>
+    <div class="mr"><span class="ml">Processing Time</span><span class="mv">{perf["time"]}s ({perf["workers"]} workers, CPU cap {perf["cpu_limit"]:.0f}%)</span></div>
+    <div class="mr"><span class="ml">Entropy Baseline</span><span class="mv">μ={eb["mean"]:.3f}  σ={eb["std"]:.3f}  Θ={eb["threshold"]:.3f}</span></div>
+    <div class="mr"><span class="ml">Parsed / Total</span><span class="mv">{stats["parsed"]:,} / {stats["total"]:,}</span></div>
   </div>
 </div>
 
 <div class="story-card">
   <h3 style="margin-bottom:10px;">📖 Forensic Reconstruction</h3>
-  <p>Analysis of <strong>{stats['total']:,}</strong> lines using <strong>{perf['workers']} parallel workers</strong> at <strong>{perf['mbps']} MB/s</strong> identified <strong>{len(result['threats'])}</strong> active threat entities across <strong>{len(result['gaps'])}</strong> timeline violations.
-  {'<strong style="color:#f87171">Kill-chain confirmed for ' + str(len(kill_chain)) + ' actor(s).</strong>' if kill_chain else 'No kill-chain confirmed.'}
-  {'<strong style="color:#fb923c"> Distributed attack: ' + str(len(distributed)) + ' IPs.</strong>' if distributed else ''}
-  Peak: <strong>{max((t['hits'] for t in result['threats']), default=0):,}</strong> events from one source.
-  Entropy Θ={eb['threshold']:.2f} flagged <strong>{stats['obfuscated']}</strong> obfuscated payloads.</p>
+  <p>Analysis of <strong>{stats["total"]:,}</strong> lines using <strong>{perf["workers"]} parallel workers</strong> at <strong>{perf["mbps"]} MB/s</strong> identified <strong>{len(result["threats"])}</strong> active threat entities across <strong>{len(result["gaps"])}</strong> timeline violations.
+  {'<strong style="color:#f87171">Kill-chain confirmed for ' + str(len(kill_chain)) + " actor(s).</strong>" if kill_chain else "No kill-chain confirmed."}
+  {'<strong style="color:#fb923c"> Distributed attack: ' + str(len(distributed)) + " IPs.</strong>" if distributed else ""}
+  Peak: <strong>{max((t["hits"] for t in result["threats"]), default=0):,}</strong> events from one source.
+  Entropy Θ={eb["threshold"]:.2f} flagged <strong>{stats["obfuscated"]}</strong> obfuscated payloads.</p>
 </div>
 
-{'<div class="card"><h3>📊 Top Actor Activity</h3>' + actor_bars + '</div>' if actor_bars else ''}
+{'<div class="card"><h3>📊 Top Actor Activity</h3>' + actor_bars + "</div>" if actor_bars else ""}
 
 {compare_html}
 
@@ -366,14 +530,14 @@ footer{{text-align:center;color:var(--secondary);font-size:11px;padding:20px 0}}
 <div class="card">
   <h2>📂 Categorized Forensic Evidence</h2>
 
-  <details><summary><div class="zh">⏱️ Zone 1: Timeline &amp; Integrity<span class="zc {zone_count_cls(result['gaps'])}">{len(result['gaps'])}</span></div></summary>
+  <details><summary><div class="zh">⏱️ Zone 1: Timeline &amp; Integrity<span class="zc {zone_count_cls(result["gaps"])}">{len(result["gaps"])}</span></div></summary>
   <div class="tw">
-    <details class="inner"><summary>Timeline Gaps</summary><table><thead><tr><th>Severity</th><th>Duration</th><th>Lines</th><th>Start</th></tr></thead><tbody>{gap_rows('GAP')}</tbody></table></details>
-    <details class="inner"><summary>Reversed Timestamps</summary><table><thead><tr><th>Severity</th><th>Delta</th><th>Lines</th><th>Start</th></tr></thead><tbody>{gap_rows('REVERSED')}</tbody></table></details>
+    <details class="inner"><summary>Timeline Gaps</summary><table><thead><tr><th>Severity</th><th>Duration</th><th>Lines</th><th>Start</th></tr></thead><tbody>{gap_rows("GAP")}</tbody></table></details>
+    <details class="inner"><summary>Reversed Timestamps</summary><table><thead><tr><th>Severity</th><th>Delta</th><th>Lines</th><th>Start</th></tr></thead><tbody>{gap_rows("REVERSED")}</tbody></table></details>
     <details class="inner"><summary>Anti-Forensic Commands</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(log_tamper)}</tbody></table></details>
   </div></details>
 
-  <details><summary><div class="zh">🔐 Zone 2: Access &amp; Control<span class="zc {zone_count_cls(brute_force + priv_esc)}">{len(brute_force)+len(priv_esc)}</span></div></summary>
+  <details><summary><div class="zh">🔐 Zone 2: Access &amp; Control<span class="zc {zone_count_cls(brute_force + priv_esc)}">{len(brute_force) + len(priv_esc)}</span></div></summary>
   <div class="tw">
     <details class="inner"><summary>Brute Force / Credential Attacks</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(brute_force)}</tbody></table></details>
     <details class="inner"><summary>Distributed Attack Participants</summary><div class="ei">Coordinated storm across {DISTRIBUTED_ATTACK_WINDOW}s windows.</div><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(distributed)}</tbody></table></details>
@@ -383,13 +547,13 @@ footer{{text-align:center;color:var(--secondary);font-size:11px;padding:20px 0}}
 
   <details><summary><div class="zh">💀 Zone 3: Kill-Chain &amp; Confirmed Attacks<span class="zc {zone_count_cls(kill_chain)}">{len(kill_chain)}</span></div></summary>
   <div class="tw">
-    <details class="inner"><summary>Kill-Chain Actors</summary><div class="ei">Stages: {' → '.join(KILL_CHAIN_STAGES)}</div><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC Score</th><th>Tags</th></tr></thead><tbody>{gen_rows(kill_chain)}</tbody></table></details>
+    <details class="inner"><summary>Kill-Chain Actors</summary><div class="ei">Stages: {" → ".join(KILL_CHAIN_STAGES)}</div><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC Score</th><th>Tags</th></tr></thead><tbody>{gen_rows(kill_chain)}</tbody></table></details>
     <details class="inner"><summary>Data Exfiltration</summary><table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead><tbody>{gen_rows(exfil)}</tbody></table></details>
   </div></details>
 
   <details><summary><div class="zh">🔮 Zone 4: Obfuscation &amp; Entropy<span class="zc {zone_count_cls(ent_hits)}">{len(ent_hits)}</span></div></summary>
   <div class="tw">
-    <div class="ei">Dynamic Θ={eb['threshold']:.3f} (μ={eb['mean']:.3f}, σ={eb['std']:.3f}). Lines above threshold: packed/encoded payloads.</div>
+    <div class="ei">Dynamic Θ={eb["threshold"]:.3f} (μ={eb["mean"]:.3f}, σ={eb["std"]:.3f}). Lines above threshold: packed/encoded payloads.</div>
     <table><thead><tr><th>IP</th><th>Hits</th><th>Sessions</th><th>KC</th><th>Tags</th></tr></thead>
     <tbody>{gen_rows(ent_hits) if ent_hits else '<tr><td colspan="5" class="no-data">None detected.</td></tr>'}</tbody></table>
   </div></details>
@@ -401,7 +565,7 @@ footer{{text-align:center;color:var(--secondary);font-size:11px;padding:20px 0}}
   </div></details>
 </div>
 
-<footer>{esc(PROJECT_NAME)} v{PROJECT_VERSION} &nbsp;|&nbsp; {stats['parsed']:,} parsed &nbsp;|&nbsp; {stats['skipped']:,} skipped &nbsp;|&nbsp; Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</footer>
+<footer>{esc(PROJECT_NAME)} v{PROJECT_VERSION} &nbsp;|&nbsp; {stats["parsed"]:,} parsed &nbsp;|&nbsp; {stats["skipped"]:,} skipped &nbsp;|&nbsp; Generated {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</footer>
 </div></body></html>"""
 
     with open(path, "w", encoding="utf-8") as f:
