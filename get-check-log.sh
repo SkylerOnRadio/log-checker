@@ -13,7 +13,7 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
-REPO_URL="git+https://github.com/SkylerOnRadio/log-checker.git"
+REPO_URL="git+https://github.com/SkylerOnRadio/log-checker.git@improved-install"
 MIN_PYTHON_MINOR=8
 TOOL_NAME="check-log"
 

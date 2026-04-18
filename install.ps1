@@ -105,7 +105,7 @@ Write-Step "Installing check-log"
 
 # Decide source: if run from the repo directory, use local. Otherwise use GitHub.
 $isLocalInstall = $PSScriptRoot -and (Test-Path "$PSScriptRoot\pyproject.toml" -or Test-Path "$PSScriptRoot\setup.py")
-$source = if ($isLocalInstall) { $PSScriptRoot } else { "git+https://github.com/SkylerOnRadio/log-checker.git" }
+$source = if ($isLocalInstall) { $PSScriptRoot } else { "git+https://github.com/SkylerOnRadio/log-checker.git@improved-install" }
 $sourceLabel = if ($isLocalInstall) { "local source ($PSScriptRoot)" } else { "GitHub" }
 
 # Check if already installed
