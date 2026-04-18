@@ -10,6 +10,7 @@ jobs:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false # Keep running Ubuntu even if macOS fails
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
@@ -22,16 +23,14 @@ jobs:
           else
             brew install pipx
           fi
-          pipx ensurepath
+          # This tells GitHub to permanently add the pipx bin to the PATH
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Run installer
         run: bash install.sh
 
       - name: Verify command
-        run: |
-          # Manually add the pipx bin path for the rest of this job
-          export PATH="$PATH:$HOME/.local/bin"
-          check-log --version
+        run: check-log --version
 
   test-windows:
     runs-on: windows-latest
@@ -44,16 +43,19 @@ jobs:
           python-version: "3.10"
 
       - name: Install pipx
-        run: python -m pip install --user pipx
+        run: |
+          python -m pip install --user pipx
+          python -m pipx ensurepath
+          # Windows uses a different path for pipx binaries
+          echo "$env:USERPROFILE\.local\bin" >> $env:GITHUB_PATH
+        shell: pwsh
 
       - name: Run PowerShell installer
         run: |
           Set-ExecutionPolicy Bypass -Scope Process -Force
           .\install.ps1
-        shell: powershell
+        shell: pwsh
 
       - name: Verify command
-        run: |
-          $env:PATH += ";$env:USERPROFILE\.local\bin"
-          check-log --version
-        shell: powershell
+        run: check-log --version
+        shell: pwsh
