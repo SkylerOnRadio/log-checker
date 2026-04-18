@@ -2,7 +2,7 @@ name: Test Installers
 
 on:
   push:
-    branches: [improve-installers]
+    branches: [improved-install]
   pull_request:
     branches: [main]
 
