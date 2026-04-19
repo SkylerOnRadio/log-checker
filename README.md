@@ -480,7 +480,7 @@ Contributions, issues, and feature requests are welcome. Check the [issues page]
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU License** — see the [LICENSE](LICENSE) file for details.
 
 ---
 
