@@ -40,21 +40,21 @@ def launch_full_app(logfile: Optional[str], app_dir: str):
     )
 
     # 2. Start Frontend
-    if not os.path.exists(os.path.join(frontend_dir, "package.json")):
-        print(
-            f"{C.RED}[!] Error: Frontend directory or package.json not found at {frontend_dir}{C.RESET}"
-        )
-        backend_process.terminate()
-        sys.exit(1)
-
+    # if not os.path.exists(os.path.join(frontend_dir, "package.json")):
+    #   print(
+    #       f"{C.RED}[!] Error: Frontend directory or package.json not found at {frontend_dir}{C.RESET}"
+    #   )
+    #   backend_process.terminate()
+    #   sys.exit(1)
+    #
     # Windows uses npm.cmd, Mac/Linux use npm
-    npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
-    frontend_cmd = [npm_cmd, "run", "dev"]
+    # npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
+    # frontend_cmd = [npm_cmd, "run", "dev"]
 
-    print(f"{C.DIM}[*] Starting React Frontend in {frontend_dir}...{C.RESET}")
-    frontend_process = subprocess.Popen(
-        frontend_cmd, cwd=frontend_dir, preexec_fn=os.setsid if is_unix else None
-    )
+    # print(f"{C.DIM}[*] Starting React Frontend in {frontend_dir}...{C.RESET}")
+    # frontend_process = subprocess.Popen(
+    #   frontend_cmd, cwd=frontend_dir, preexec_fn=os.setsid if is_unix else None
+    #:watch)
 
     # 3. Wait and watch for Ctrl+C
     try:
@@ -63,13 +63,13 @@ def launch_full_app(logfile: Optional[str], app_dir: str):
         )
         # Keep the main script alive while the subprocesses run
         backend_process.wait()
-        frontend_process.wait()
+        # frontend_process.wait()
     except KeyboardInterrupt:
         print(f"\n{C.YELLOW}[!] Shutting down servers gracefully...{C.RESET}")
         if is_unix:
             os.killpg(os.getpgid(backend_process.pid), signal.SIGTERM)
-            os.killpg(os.getpgid(frontend_process.pid), signal.SIGTERM)
+            # os.killpg(os.getpgid(frontend_process.pid), signal.SIGTERM)
         else:
             backend_process.terminate()
-            frontend_process.terminate()
+            # frontend_process.terminate()
         sys.exit(0)
