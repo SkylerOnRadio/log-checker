@@ -1,3 +1,9 @@
+"""Lightweight log intelligence helpers.
+
+Contains fast timestamp parsing, entropy calculations, template extraction,
+session reconstruction, and risk-zone scoring helpers used by the engine.
+"""
+
 import re
 import math
 from collections import Counter

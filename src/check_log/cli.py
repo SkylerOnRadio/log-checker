@@ -1,3 +1,9 @@
+"""CLI entrypoint for the check-log tool.
+
+Provides argument parsing and dispatch to the scan engine and reporting
+subsystems. Intended to be executed as a script or via `python -m check_log`.
+"""
+
 import argparse
 import multiprocessing
 import os
@@ -68,7 +74,7 @@ Examples:
     # --- NEW ROUTING LOGIC ---
     if args.app is not None:
         # User passed -a <path>, launch the full app and skip the CLI text report
-        launch_full_app(args.logfile, args.app)  # <--- FIX: Add args.app here
+        launch_full_app(args.logfile, args.app)
         return
 
     # If the user DID NOT pass -a, they MUST provide a logfile for the CLI tool
@@ -115,7 +121,7 @@ Examples:
         tasks.append(("HTML Visual Dashboard", lambda: report_html(result, args.logfile, out_paths["html"])))
 
     if fmt in ("all", "json"):
-        tasks.append(( "JSON Raw Telementary",lambda:report_json(result, out_paths["json"])))
+        tasks.append(( "JSON Raw Telemetry", lambda: report_json(result, out_paths["json"])))
 
     if tasks:
         if fmt != "terminal":

@@ -1,3 +1,9 @@
+"""Utility helpers for file handling and environment metadata.
+
+Includes transparent openers for plain/gzip/bz2 logs, output path
+resolution and small system metadata helpers used by reporting and CLI.
+"""
+
 import os
 import re
 import gzip

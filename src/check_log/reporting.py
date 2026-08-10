@@ -1,10 +1,15 @@
+"""Reporting and output generation.
+
+Provides terminal-friendly output (via rich), CSV exports, HTML
+dashboard generation, and JSON export of the forensic results.
+"""
+
 import csv
 import json
 import os
 import html
 from datetime import datetime
 
-# Add these new imports at the top of reporting.py
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table

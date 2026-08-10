@@ -1,3 +1,9 @@
+"""Multiprocessed scanning engine.
+
+Handles file chunking, worker processes (plain and compressed paths),
+throttling, progress reporting, and final merging of detected events.
+"""
+
 import os
 import time
 import mmap

@@ -1,3 +1,9 @@
+"""Configuration constants, compiled regex patterns, and defaults.
+
+Defines project identity, ANSI color helpers, signature fallbacks, and
+all tunable parameters used across the scanning engine.
+"""
+
 import os
 import re
 import sys
