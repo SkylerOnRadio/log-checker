@@ -491,6 +491,6 @@ This project is licensed under the GNU GPLv3 — see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-Made with ❤️ by [SkylerOnRadio](https://github.com/SkylerOnRadio) & [Gaurav Deep](https://github.com/gauravdeepgd12007)
+Made with ❤️ by [SkylerOnRadio](https://github.com/SkylerOnRadio) & [Gaurav Deep](https://github.com/gauravdeepgd12007) & [Vaibhav Tiwari][https://github.com/how-vaibhav]
 
 </div>
